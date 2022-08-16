@@ -25,7 +25,7 @@ public class AmigaMod {
 
   public final ByteBuffer bytes;
   public final int patternSize;
-  public final int orderSize;
+  public final int[] samples = new int[0x20];
 
   private static byte[] readAllBytes(InputStream stream) {
     try (stream) {
@@ -49,11 +49,30 @@ public class AmigaMod {
       maxOrder = b == 0 ? maxOrder : i;
     }
     patternSize = maxPattern + 1;
-    orderSize = maxOrder + 1;
+    for (int i = 0, sampleStart = 0; i < 0x20; i++) {
+      samples[i] = sampleStart;
+      sampleStart += i == 0 ? 0x43C + patternSize * 0x400 : getSampleSize(i);
+    }
   }
 
   public AmigaMod(InputStream stream) {
     this(readAllBytes(stream));
+  }
+
+  public int getSampleSize(int sample) {
+    return bytes.getShort(sample * 0x1E + 0x0C) << 1 & 0x1FFFF;
+  }
+
+  public int getSampleStart(int sample) {
+    return samples[sample];
+  }
+
+  public int getSampleEnd(int sample) {
+    return getSampleStart(sample) + getSampleSize(sample);
+  }
+
+  public int getOrderSize() {
+    return bytes.get(0x3B6);
   }
 
   public Sequencer newSequencer() {
@@ -80,7 +99,7 @@ public class AmigaMod {
     }
 
     public int getLoop() {
-      return getOrder() / orderSize;
+      return getOrder() / getOrderSize();
     }
 
     public Note[] getNotes() {
@@ -95,10 +114,21 @@ public class AmigaMod {
   }
 
   public static class Note {
+    public static final String CDEFGAB0 = "CCDDEFFGGAAB";
+    public static final String CDEFGAB1 = "-#-#--#-#-#-";
+    public static final String FX = ".123456789ABCDEF";
     private final int data;
+    private final int midiNote;
 
     public Note(int data) {
       this.data = data;
+      int noteCode = getNoteCode();
+      if (noteCode > 0) {
+        double log2 = Math.log(254.0 / noteCode) / Math.log(2);
+        midiNote = (int) Math.round(69 + log2 * 12);
+      } else {
+        midiNote = 0;
+      }
     }
 
     public int getNoteCode() {
@@ -115,6 +145,31 @@ public class AmigaMod {
 
     public int getFrequency() {
       return 440 * 254 / getNoteCode();
+    }
+
+    public int getMidiNote() {
+      return midiNote;
+    }
+
+    public int getSample() {
+      return data >> 24 & 0xF0 | data >> 12 & 0x0F;
+    }
+
+    public int getFxCommand() {
+      return data >> 8 & 0x0F;
+    }
+
+    public int getFxData() {
+      return data & 0xFF;
+    }
+
+    @Override
+    public String toString() {
+      return String.format("%s %s %c%02X",
+          isNoteEmpty() ? "..." : String.format("%c%c%d",
+              CDEFGAB0.charAt(midiNote % 12), CDEFGAB1.charAt(midiNote % 12), (midiNote / 12 - 1)),
+          getSample() == 0 ? ".." : String.format("%02d", getSample()),
+          FX.charAt(getFxCommand()), getFxData());
     }
   }
 

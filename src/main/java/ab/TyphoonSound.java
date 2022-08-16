@@ -64,8 +64,8 @@ public class TyphoonSound implements AutoCloseable {
         clip.r += d0;
         clip.framePosition += clip.r / d1;
         clip.r %= d1;
-        if (clip.framePosition >= clip.data.length) {
-          clip.framePosition = clip.data.length;
+        if (clip.framePosition >= clip.loopEnd) {
+          clip.framePosition = clip.loopStart;
         } else {
           wav[i] += clip.data[clip.framePosition] << 6;
         }
@@ -90,6 +90,8 @@ public class TyphoonSound implements AutoCloseable {
     byte[] data;
     private float sampleRate;
     private int framePosition;
+    private int loopStart;
+    private int loopEnd;
     int r;
 
     public float getSampleRate() {
@@ -111,6 +113,12 @@ public class TyphoonSound implements AutoCloseable {
     @Override
     public void setFramePosition(int framePosition) {
       this.framePosition = framePosition;
+    }
+
+    @Override
+    public void setLoopPoints(int start, int end) {
+      loopStart = start;
+      loopEnd = end;
     }
 
   }
