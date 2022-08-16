@@ -14,6 +14,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 
 public class App {
@@ -60,10 +62,14 @@ public class App {
     MidiChannel[] midi = synthesizer.getChannels();
     int piano = -1 + 2; // 2 - bright piano
     synthesizer.loadInstrument(instruments[piano]);
+    int bpmSpeed = 6;
+    int bpmTempo = 125;
 
+    sound.putWav(sound.getWav());
+    Instant now = Instant.now();
     for (AmigaMod.Sequencer sequencer = mod.newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
       try {
-        System.out.print(String.format("\r%02X/%02X", sequencer.getOrder(), sequencer.getRow()));
+        System.out.print(String.format("\r%02d/%02d", sequencer.getOrder(), sequencer.getRow()));
         AmigaMod.Note[] notes = sequencer.getNotes();
         for (int c = 0; c < 4; c++) {
           AmigaMod.Note note = notes[c];
@@ -74,10 +80,28 @@ public class App {
           sound.ch[c].setLoopPoints(mod.getSampleEnd(note.getSample()), mod.getSampleEnd(note.getSample()));
 //          midi[0].programChange(piano);
 //          midi[0].noteOn(note.getMidiNote(), 0x60);
+          switch (note.getFxCommand()) {
+            case 15:
+              int d = note.getFxData();
+              if (d == 0) break;
+              if (d < 0x20) {
+                bpmSpeed = d;
+              } else {
+                bpmTempo = d;
+              }
+              break;
+          }
         }
         System.out.println();
         sound.putWav(sound.getWav());
-        Thread.sleep(120);
+        now = now.plusNanos(2_500_000_000L * bpmSpeed / bpmTempo);
+        Duration duration = Duration.between(Instant.now(), now);
+        if (duration.isNegative()) {
+          now = Instant.now();
+          continue;
+        }
+        Thread.sleep(duration.toMillis());
+        //Thread.sleep(15_000 / bpm);
         Arrays.stream(notes).filter(AmigaMod.Note::isNoteEmpty)
             .map(AmigaMod.Note::getMidiNote).forEach(n -> midi[0].noteOff(n));
       } catch (InterruptedException e) {

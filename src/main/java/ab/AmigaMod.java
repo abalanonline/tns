@@ -25,7 +25,10 @@ public class AmigaMod {
 
   public final ByteBuffer bytes;
   public final int patternSize;
-  public final int[] samples = new int[0x20];
+  public int samplesSize = 0x20;
+  public final int[] samples = new int[samplesSize];
+  public final int orderPos;
+  public final int patternPos;
 
   private static byte[] readAllBytes(InputStream stream) {
     try (stream) {
@@ -40,7 +43,9 @@ public class AmigaMod {
     if (bytes.getInt(0x438) != 0x4D2E4B2E) {
       throw new IllegalStateException("mod file error");
     }
-    bytes.position(0x3B8);
+    orderPos = samplesSize > 0x10 ? 0x3B6 : 0x1D6;
+    patternPos = samplesSize > 0x10 ? 0x43C : 0x258;
+    bytes.position(orderPos + 2);
     int maxPattern = 0;
     int maxOrder = 0;
     for (int i = 0; i < 0x80; i++) {
@@ -49,9 +54,9 @@ public class AmigaMod {
       maxOrder = b == 0 ? maxOrder : i;
     }
     patternSize = maxPattern + 1;
-    for (int i = 0, sampleStart = 0; i < 0x20; i++) {
+    for (int i = 0, sampleStart = 0; i < samplesSize; i++) {
       samples[i] = sampleStart;
-      sampleStart += i == 0 ? 0x43C + patternSize * 0x400 : getSampleSize(i);
+      sampleStart += i == 0 ? patternPos + patternSize * 0x400 : getSampleSize(i);
     }
   }
 
@@ -72,7 +77,7 @@ public class AmigaMod {
   }
 
   public int getOrderSize() {
-    return bytes.get(0x3B6);
+    return bytes.get(orderPos);
   }
 
   public Sequencer newSequencer() {
@@ -91,7 +96,7 @@ public class AmigaMod {
     }
 
     public int getPattern() {
-      return bytes.get(getOrder() + 0x3B8);
+      return bytes.get(orderPos + 2 + getOrder());
     }
 
     public int getRow() {
@@ -103,7 +108,7 @@ public class AmigaMod {
     }
 
     public Note[] getNotes() {
-      int position = ((getPattern() << 6) + getRow() << 4) + 0x43C;
+      int position = ((getPattern() << 6) + getRow() << 4) + patternPos;
       bytes.position(position);
       Note[] result = new Note[4];
       for (int c = 0; c < 4; c++) {
