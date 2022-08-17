@@ -41,6 +41,7 @@ public class AmigaMod {
   public AmigaMod(byte[] content) {
     bytes = ByteBuffer.wrap(content);
     if (bytes.getInt(0x438) != 0x4D2E4B2E) {
+      samplesSize = 0x10;
       throw new IllegalStateException("mod file error");
     }
     orderPos = samplesSize > 0x10 ? 0x3B6 : 0x1D6;
@@ -145,7 +146,9 @@ public class AmigaMod {
     }
 
     public int getSampleRate() {
-      return 8363 * 428 / getNoteCode();
+      double log2 = (midiNote - 60) / 12.0;
+      int noteCode = (int) (428.0 / Math.exp(log2 * Math.log(2)));
+      return 8363 * 428 / noteCode;
     }
 
     public int getFrequency() {

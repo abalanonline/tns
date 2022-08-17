@@ -1,13 +1,10 @@
 package ab;
 
-import javax.sound.midi.Instrument;
 import javax.sound.midi.InvalidMidiDataException;
-import javax.sound.midi.MidiChannel;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.Sequencer;
-import javax.sound.midi.Synthesizer;
 import javax.sound.sampled.AudioFormat;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 
 public class App {
 
@@ -50,18 +46,10 @@ public class App {
       clip.setSampleRate(0);
       sound.ch[i] = clip;
     }
-
-    Synthesizer synthesizer;
-    try {
-      synthesizer = MidiSystem.getSynthesizer();
-      synthesizer.open();
-    } catch (MidiUnavailableException e) {
-      throw new IllegalStateException(e);
+    for (int i = 0; i < mod.samplesSize; i++) {
+      sound.loadInstrument(i, mod.getSampleStart(i), mod.getSampleEnd(i));
     }
-    Instrument[] instruments = synthesizer.getDefaultSoundbank().getInstruments();
-    MidiChannel[] midi = synthesizer.getChannels();
-    int piano = -1 + 2; // 2 - bright piano
-    synthesizer.loadInstrument(instruments[piano]);
+
     int bpmSpeed = 6;
     int bpmTempo = 125;
 
@@ -69,19 +57,14 @@ public class App {
     Instant now = Instant.now();
     for (AmigaMod.Sequencer sequencer = mod.newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
       try {
-        System.out.print(String.format("\r%02d/%02d", sequencer.getOrder(), sequencer.getRow()));
+        System.out.print(String.format("\r  %02d/%02d", sequencer.getOrder(), sequencer.getRow()));
         AmigaMod.Note[] notes = sequencer.getNotes();
         for (int c = 0; c < 4; c++) {
           AmigaMod.Note note = notes[c];
           System.out.print(" | " + note);
-          if (note.isNoteEmpty() || note.getSample() == 0) continue;
-          sound.ch[c].setSampleRate(note.getSampleRate());
-          sound.ch[c].setFramePosition(mod.getSampleStart(note.getSample()));
-          sound.ch[c].setLoopPoints(mod.getSampleEnd(note.getSample()), mod.getSampleEnd(note.getSample()));
-//          midi[0].programChange(piano);
-//          midi[0].noteOn(note.getMidiNote(), 0x60);
+          sound.noteOffOn(c, note.getSample(), note.getMidiNote(), true);
           switch (note.getFxCommand()) {
-            case 15:
+            case 0xF:
               int d = note.getFxData();
               if (d == 0) break;
               if (d < 0x20) {
@@ -102,8 +85,15 @@ public class App {
         }
         Thread.sleep(duration.toMillis());
         //Thread.sleep(15_000 / bpm);
-        Arrays.stream(notes).filter(AmigaMod.Note::isNoteEmpty)
-            .map(AmigaMod.Note::getMidiNote).forEach(n -> midi[0].noteOff(n));
+        for (int c = 0; c < 4; c++) {
+          AmigaMod.Note note = notes[c];
+          sound.noteOffOn(c, note.getSample(), note.getMidiNote(), false);
+          switch (note.getFxCommand()) {
+            case 0xD:
+              for (int i = sequencer.getOrder(); i == sequencer.getOrder(); sequencer.inc()) {}
+              break;
+          }
+        }
       } catch (InterruptedException e) {
         break;
       }

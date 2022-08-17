@@ -16,6 +16,9 @@
 
 package ab;
 
+import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.Receiver;
+import javax.sound.midi.ShortMessage;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
@@ -29,8 +32,14 @@ public class TyphoonSound implements AutoCloseable {
   private final AudioFormat audioFormat;
   private final SourceDataLine line;
   public final TsClip[] ch = new TsClip[CHANNELS];
+  Receiver midiReceiver;
 
   public TyphoonSound() {
+    System.out.println("     ___                                ");
+    System.out.println("     /        __  /__   __   __   __    ");
+    System.out.println("    /  /__/ /__/ /  / /__/ /__/ /  /    ");
+    System.out.println("       __/ /    tracker                 ");
+    System.out.println();
     audioFormat = AUDIO_CD;
     try {
       line = AudioSystem.getSourceDataLine(audioFormat);
@@ -59,6 +68,7 @@ public class TyphoonSound implements AutoCloseable {
     for (TsClip clip : ch) {
       if (clip == null) continue;
       int d0 = (int) (clip.getSampleRate());
+      if (d0 == 0) continue;
       int d1 = (int) (audioFormat.getSampleRate());
       for (int i = 0; i < wav.length; i++) {
         clip.r += d0;
@@ -83,6 +93,40 @@ public class TyphoonSound implements AutoCloseable {
       }
     }
     line.write(bytes, 0, bytes.length);
+  }
+
+  int[] soundBank = new int[64];
+  public void loadInstrument(int sample, int sampleStart, int sampleEnd) {
+    soundBank[sample * 2] = sampleStart;
+    soundBank[sample * 2 + 1] = sampleEnd;
+  }
+
+  public void setMidiReceiver(Receiver midiReceiver) {
+    this.midiReceiver = midiReceiver;
+  }
+
+  public void sendMessage(int command, int channel, int data1, int data2, long timeStamp) {
+    ShortMessage message = new ShortMessage();
+    try {
+      message.setMessage(command, channel, data1, data2);
+    } catch (InvalidMidiDataException ignore) {
+    }
+    midiReceiver.send(message, timeStamp);
+  }
+
+  public void noteOffOn(int channel, int sample, int key, boolean on) {
+    if (sample == 0 || key == 0) return;
+    if (midiReceiver == null) {
+      if (on) {
+        ch[channel].setFramePosition(soundBank[sample * 2]);
+        ch[channel].setLoopPoints(soundBank[sample * 2 + 1], soundBank[sample * 2 + 1]);
+        int C4SPD = 8363;
+        ch[channel].setSampleRate((int) (C4SPD * Math.exp((key - 60) / 12.0 * Math.log(2))));
+      }
+      return;
+    }
+    sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample, 0, -1);
+    sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, 0x60, -1);
   }
 
   public static class TsClip extends DummyClip {
