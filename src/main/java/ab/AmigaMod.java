@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class AmigaMod {
 
@@ -66,19 +68,46 @@ public class AmigaMod {
   }
 
   public int getSampleSize(int sample) {
-    return bytes.getShort(sample * 0x1E + 0x0C) << 1 & 0x1FFFF;
+    return sample == 0 ? samples[1] : bytes.getShort(sample * 0x1E + 0x0C) << 1 & 0x1FFFF;
+  }
+
+  public String getSongName() {
+    return new String(Arrays.copyOfRange(bytes.array(), 0, 0x14), StandardCharsets.ISO_8859_1);
+  }
+
+  public String getSampleName(int sample) {
+    if (sample == 0) return getSongName();
+    return new String(Arrays.copyOfRange(bytes.array(), sample * 0x1E - 0x0A, sample * 0x1E + 0x0C),
+        StandardCharsets.ISO_8859_1);
   }
 
   public int getSampleStart(int sample) {
     return samples[sample];
   }
 
+  @Deprecated
   public int getSampleEnd(int sample) {
     return getSampleStart(sample) + getSampleSize(sample);
   }
 
   public int getOrderSize() {
     return bytes.get(orderPos);
+  }
+
+  /**
+   * Definition of Loop.
+   */
+  public boolean isLoop(int sample) {
+    // FIXME: 2022-08-18 this is wrong
+    return sample == 0 ? true : getLoopStart(sample) != 0;
+  }
+
+  public int getLoopStart(int sample) {
+    return sample == 0 ? 0 : bytes.getShort(sample * 0x1E + 0x10) << 1 & 0x1FFFF;
+  }
+
+  public int getLoopLength(int sample) {
+    return sample == 0 ? samples[1] : bytes.getShort(sample * 0x1E + 0x12) << 1 & 0x1FFFF;
   }
 
   public Sequencer newSequencer() {
@@ -130,8 +159,8 @@ public class AmigaMod {
       this.data = data;
       int noteCode = getNoteCode();
       if (noteCode > 0) {
-        double log2 = Math.log(254.0 / noteCode) / Math.log(2);
-        midiNote = (int) Math.round(69 + log2 * 12);
+        double log2 = Math.log(428.0 / noteCode) / Math.log(2);
+        midiNote = (int) Math.round(60 + log2 * 12);
       } else {
         midiNote = 0;
       }
@@ -141,18 +170,11 @@ public class AmigaMod {
       return (data >> 16) & 0x0FFF;
     }
 
-    public boolean isNoteEmpty() {
-      return getNoteCode() == 0;
-    }
-
-    public int getSampleRate() {
-      double log2 = (midiNote - 60) / 12.0;
-      int noteCode = (int) (428.0 / Math.exp(log2 * Math.log(2)));
-      return 8363 * 428 / noteCode;
-    }
-
-    public int getFrequency() {
-      return 440 * 254 / getNoteCode();
+    /**
+     * Definition of Note On.
+     */
+    public boolean isNoteOn() {
+      return getNoteCode() != 0;
     }
 
     public int getMidiNote() {
@@ -174,7 +196,7 @@ public class AmigaMod {
     @Override
     public String toString() {
       return String.format("%s %s %c%02X",
-          isNoteEmpty() ? "..." : String.format("%c%c%d",
+          !isNoteOn() ? "..." : String.format("%c%c%d",
               CDEFGAB0.charAt(midiNote % 12), CDEFGAB1.charAt(midiNote % 12), (midiNote / 12 - 1)),
           getSample() == 0 ? ".." : String.format("%02d", getSample()),
           FX.charAt(getFxCommand()), getFxData());

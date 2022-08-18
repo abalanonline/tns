@@ -1,10 +1,21 @@
 package ab;
 
+import com.sun.media.sound.SF2Instrument;
+import com.sun.media.sound.SF2InstrumentRegion;
+import com.sun.media.sound.SF2Layer;
+import com.sun.media.sound.SF2LayerRegion;
+import com.sun.media.sound.SF2Region;
+import com.sun.media.sound.SF2Sample;
+import com.sun.media.sound.SF2Soundbank;
+
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MidiDevice;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
+import javax.sound.midi.Patch;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.Sequencer;
+import javax.sound.midi.Synthesizer;
 import javax.sound.sampled.AudioFormat;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,6 +37,60 @@ public class App {
     } catch (MidiUnavailableException | InvalidMidiDataException | IOException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  public static SF2Sample createSample(SF2Soundbank sf2, AmigaMod mod, int modSample) {
+    int sampleSize = mod.getSampleSize(modSample);
+    byte[] modBytes = mod.bytes.array();
+    byte[] insBytes = new byte[sampleSize * 2];
+    for (int i = 0, i0 = mod.getSampleStart(modSample), i1 = 1; i < sampleSize; i++, i0++, i1 += 2) {
+      insBytes[i1] = modBytes[i0];
+    }
+
+    SF2Sample sample = new SF2Sample(sf2);
+    sample.setName(mod.getSampleName(modSample));
+    sample.setData(insBytes);
+    if (mod.isLoop(modSample)) {
+      int loopPoint = mod.getLoopStart(modSample);
+      sample.setStartLoop(loopPoint);
+      loopPoint += mod.getLoopLength(modSample);
+      sample.setEndLoop(loopPoint);
+    }
+    sample.setSampleRate(44100);
+    sample.setSampleType(1);
+    double originalNote = 60 + (12 * Math.log(44100.0 / 8363) / Math.log(2));
+    sample.setOriginalPitch((int) originalNote);
+    sample.setPitchCorrection((byte) (-(originalNote - (int) originalNote) * 100.0));
+    sf2.addResource(sample);
+
+    return sample;
+  }
+
+  public static SF2Layer createLayer(SF2Soundbank sf2, AmigaMod mod, int modSample) {
+    SF2LayerRegion region = new SF2LayerRegion();
+    region.setSample(createSample(sf2, mod, modSample));
+    if (mod.isLoop(modSample)) region.putInteger(SF2Region.GENERATOR_SAMPLEMODES, 3);
+
+    SF2Layer layer = new SF2Layer(sf2);
+    layer.setName(mod.getSampleName(modSample));
+    layer.getRegions().add(region);
+    sf2.addResource(layer);
+    return layer;
+  }
+
+  public static SF2Soundbank createSoundbank(AmigaMod mod) {
+    SF2Soundbank sf2 = new SF2Soundbank();
+    sf2.setName(mod.getSongName());
+    for (int i = 1; i < mod.samplesSize; i++) {
+      SF2Instrument instrument = new SF2Instrument(sf2);
+      instrument.setPatch(new Patch(0, i));
+      instrument.setName(mod.getSampleName(i));
+      sf2.addInstrument(instrument);
+      SF2InstrumentRegion instrumentRegion = new SF2InstrumentRegion();
+      instrumentRegion.setLayer(createLayer(sf2, mod, i));
+      instrument.getRegions().add(instrumentRegion);
+    }
+    return sf2;
   }
 
   public static void main( String[] args ) {
@@ -50,11 +115,22 @@ public class App {
       sound.loadInstrument(i, mod.getSampleStart(i), mod.getSampleEnd(i));
     }
 
+    try {
+      MidiDevice midiDevice = MidiSystem.getMidiDevice(MidiSystem.getMidiDeviceInfo()[0]);
+      midiDevice.open();
+      sound.setMidiReceiver(midiDevice.getReceiver());
+      Synthesizer synthesizer = (Synthesizer) midiDevice;
+      synthesizer.loadAllInstruments(createSoundbank(mod));
+    } catch (MidiUnavailableException ignore) {
+    }
+
     int bpmSpeed = 6;
     int bpmTempo = 125;
 
     sound.putWav(sound.getWav());
     Instant now = Instant.now();
+    int[] chSample = new int[0x20];
+    int[] chNote = new int[0x20];
     for (AmigaMod.Sequencer sequencer = mod.newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
       try {
         System.out.print(String.format("\r  %02d/%02d", sequencer.getOrder(), sequencer.getRow()));
@@ -62,7 +138,12 @@ public class App {
         for (int c = 0; c < 4; c++) {
           AmigaMod.Note note = notes[c];
           System.out.print(" | " + note);
-          sound.noteOffOn(c, note.getSample(), note.getMidiNote(), true);
+          if (note.isNoteOn()) {
+            sound.noteOffOn(c, chSample[c], chNote[c], false);
+            chSample[c] = note.getSample();
+            chNote[c] = note.getMidiNote();
+            sound.noteOffOn(c, chSample[c], chNote[c], true);
+          }
           switch (note.getFxCommand()) {
             case 0xF:
               int d = note.getFxData();
@@ -84,10 +165,8 @@ public class App {
           continue;
         }
         Thread.sleep(duration.toMillis());
-        //Thread.sleep(15_000 / bpm);
         for (int c = 0; c < 4; c++) {
           AmigaMod.Note note = notes[c];
-          sound.noteOffOn(c, note.getSample(), note.getMidiNote(), false);
           switch (note.getFxCommand()) {
             case 0xD:
               for (int i = sequencer.getOrder(); i == sequencer.getOrder(); sequencer.inc()) {}
