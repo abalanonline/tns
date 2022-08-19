@@ -17,6 +17,7 @@ import javax.sound.midi.Sequence;
 import javax.sound.midi.Sequencer;
 import javax.sound.midi.Synthesizer;
 import javax.sound.sampled.AudioFormat;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -56,11 +57,9 @@ public class App {
       loopPoint += mod.getLoopLength(modSample);
       sample.setEndLoop(loopPoint);
     }
-    sample.setSampleRate(44100);
+    sample.setSampleRate(8363);
     sample.setSampleType(1);
-    double originalNote = 60 + (12 * Math.log(44100.0 / 8363) / Math.log(2));
-    sample.setOriginalPitch((int) originalNote);
-    sample.setPitchCorrection((byte) (-(originalNote - (int) originalNote) * 100.0));
+    sample.setOriginalPitch(60);
     sf2.addResource(sample);
 
     return sample;
@@ -112,7 +111,7 @@ public class App {
       sound.ch[i] = clip;
     }
     for (int i = 0; i < mod.samplesSize; i++) {
-      sound.loadInstrument(i, mod.getSampleStart(i), mod.getSampleEnd(i));
+      sound.loadInstrument(i, mod.getSampleStart(i), mod.getSampleStart(i) + mod.getSampleSize(i));
     }
 
     try {
@@ -120,8 +119,23 @@ public class App {
       midiDevice.open();
       sound.setMidiReceiver(midiDevice.getReceiver());
       Synthesizer synthesizer = (Synthesizer) midiDevice;
-      synthesizer.loadAllInstruments(createSoundbank(mod));
-    } catch (MidiUnavailableException ignore) {
+
+      byte[] pcm8 = mod.bytes.array();
+      byte[] pcm16 = new byte[pcm8.length * 2];
+      for (int i = 0, i1 = 1; i < pcm8.length; i++, i1 += 2) {
+        pcm16[i1] = pcm8[i];
+      }
+
+      TyphoonSound.Font soundFont = new TyphoonSound.Font(mod.samplesSize, pcm16, 8363, mod.getSongName());
+      TyphoonSound.Instrument[] ins = soundFont.getInstruments();
+      for (int i = 0; i < ins.length; i++) {
+        ins[i].setName(mod.getSampleName(i));
+        ins[i].setSampe(mod.getSampleStart(i), mod.getSampleSize(i));
+        if (mod.isLoop(i)) ins[i].setLoop(mod.getLoopStart(i), mod.getLoopLength(i));
+      }
+      synthesizer.loadAllInstruments(MidiSystem.getSoundbank(new ByteArrayInputStream(soundFont.toByteArray())));
+
+    } catch (MidiUnavailableException | InvalidMidiDataException | IOException ignore) {
     }
 
     int bpmSpeed = 6;

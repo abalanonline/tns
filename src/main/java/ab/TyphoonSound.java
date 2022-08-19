@@ -23,6 +23,13 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
 
 public class TyphoonSound implements AutoCloseable {
 
@@ -35,7 +42,7 @@ public class TyphoonSound implements AutoCloseable {
   Receiver midiReceiver;
 
   public TyphoonSound() {
-    System.out.println("     ___                                ");
+    System.out.println("    ____                                ");
     System.out.println("     /        __  /__   __   __   __    ");
     System.out.println("    /  /__/ /__/ /  / /__/ /__/ /  /    ");
     System.out.println("       __/ /    tracker                 ");
@@ -130,6 +137,7 @@ public class TyphoonSound implements AutoCloseable {
   }
 
   public static class TsClip extends DummyClip {
+    // FIXME: 2022-08-18 Clip is not designed to change pitch in real time
     //private AudioFormat format;
     byte[] data;
     private float sampleRate;
@@ -167,4 +175,158 @@ public class TyphoonSound implements AutoCloseable {
 
   }
 
+  public static class Instrument {
+    String name = "";
+    int sampleStart;
+    int sampleSize;
+    int loopStart;
+    int loopSize;
+    List<Integer> presetGenerators = new ArrayList<>();
+    List<Integer> instrumentGenerators = new ArrayList<>();
+
+    public void setName(String name) {
+      this.name = name;
+    }
+
+    public void setSampe(int start, int size) {
+      sampleStart = start;
+      sampleSize = size;
+    }
+
+    /**
+     * @param start is relative to sample start
+     */
+    public void setLoop(int start, int size) {
+      instrumentGenerators.add(54); // sampleModes
+      instrumentGenerators.add(3); // loops for the duration of key depression
+      loopStart = start;
+      loopSize = size;
+    }
+  }
+
+  public static class Font {
+    byte[] pcm;
+    int c4spd;
+    String name;
+    private int programNumber;
+    final Instrument[] instruments;
+
+    public Font(int instruments, byte[] pcm, int c4spd, String name) {
+      this.instruments = new Instrument[instruments];
+      for (int i = 0; i < instruments; i++) {
+        this.instruments[i] = new Instrument();
+      }
+      this.pcm = pcm;
+      this.c4spd = c4spd;
+      this.name = name;
+    }
+
+    public Instrument[] getInstruments() {
+      return instruments;
+    }
+
+    private byte[] bag(String id, Function<Instrument, List<Integer>> f) {
+      ByteBuffer bytes = newChunk(id, (instruments.length + 1) * 4);
+      bytes.putInt(0);
+      int i1 = 0;
+      for (Instrument instrument : instruments) {
+        i1 += f.apply(instrument).size() / 2 + 1;
+        bytes.putInt(i1);
+      }
+      return bytes.array();
+    }
+
+    private byte[] gen(String id, Function<Instrument, List<Integer>> f, int generator) {
+      List<Integer> list = new ArrayList<>();
+      for (int i = 0; i < instruments.length; i++) {
+        list.addAll(f.apply(instruments[i]));
+        list.add(generator);
+        list.add(i);
+      }
+      list.add(0);
+      list.add(0);
+      ByteBuffer bytes = newChunk(id, list.size() * 2);
+      list.stream().map(Integer::shortValue).forEach(bytes::putShort);
+      return bytes.array();
+    }
+
+    public byte[] toByteArray() {
+      int ins1 = instruments.length + 1;
+      ByteBuffer phdr = newChunk("phdr", ins1 * 0x26);
+      ByteBuffer inst = newChunk("inst", ins1 * 0x16);
+      ByteBuffer shdr = newChunk("shdr", ins1 * 0x2E);
+      for (int i = 0; i < instruments.length; i++) {
+        Instrument ins = instruments[i];
+        byte[] name = paddedStr(ins.name);
+        phdr.put(name); inst.put(name); shdr.put(name);
+        phdr.putInt(i + programNumber);
+        phdr.putInt(i);
+        phdr.put(new byte[0x0A]);
+        inst.putShort((short) i);
+        int start = ins.sampleStart;
+        shdr.putInt(start);
+        shdr.putInt(start + ins.sampleSize);
+        start += ins.loopStart;
+        shdr.putInt(start);
+        shdr.putInt(start + ins.loopSize);
+        shdr.putInt(c4spd);
+        shdr.putInt(60); // C4
+        shdr.putShort((short) 1);
+      }
+      phdr.put(paddedStr("EOP"));
+      phdr.putInt(0);
+      phdr.putInt(instruments.length);
+      inst.put(paddedStr("EOI"));
+      inst.putShort((short) instruments.length);
+      shdr.put(paddedStr("EOS"));
+
+      Function<Instrument, List<Integer>> pfn = instrument -> instrument.presetGenerators;
+      Function<Instrument, List<Integer>> ifn = instrument -> instrument.instrumentGenerators;
+
+      return list("RIFF", "sfbk",
+          list("LIST", "INFO",
+              chunk("ifil", new byte[]{2, 0, 1, 0}), // v 2.01
+              chunk("isng", paddedStr("Typhoon Sound System", -1)),
+              chunk("INAM", paddedStr(name, -1))),
+          list("LIST", "sdta",
+              chunk("smpl", pcm)),
+          list("LIST", "pdta",
+              phdr.array(),
+              bag("pbag", pfn), chunk("pmod", new byte[10]), gen("pgen", pfn, 41), // instrument
+              inst.array(),
+              bag("ibag", ifn), chunk("imod", new byte[10]), gen("igen", ifn, 53), // sampleID
+              shdr.array()));
+    }
+
+    private static byte[] paddedStr(String s, int newLength) {
+      if (newLength < 0) newLength = s.length() + 1;
+      return Arrays.copyOf(s.getBytes(StandardCharsets.ISO_8859_1), newLength);
+    }
+
+    private static byte[] paddedStr(String s) {
+      return paddedStr(s, 0x14);
+    }
+
+    public static ByteBuffer newChunk(String id, int length) {
+      assert id.length() == 4;
+      length += length & 1;
+      ByteBuffer bytes = ByteBuffer.wrap(new byte[length + 8]).order(ByteOrder.LITTLE_ENDIAN);
+      bytes.put(paddedStr(id, 4));
+      bytes.putInt(length);
+      return bytes;
+    }
+
+    public static byte[] list(String id, String key, byte[]... chunks) {
+      int length = Arrays.stream(chunks).mapToInt(b -> b.length).sum() + 4;
+      ByteBuffer bytes = newChunk(id, length);
+      bytes.put(paddedStr(key, 4));
+      Arrays.stream(chunks).forEach(bytes::put);
+      return bytes.array();
+    }
+
+    public static byte[] chunk(String id, byte[] content) {
+      return newChunk(id, content.length).put(content).array();
+    }
+
+  }
 }
