@@ -40,6 +40,7 @@ public class TyphoonSound implements AutoCloseable {
   private final SourceDataLine line;
   public final TsClip[] ch = new TsClip[CHANNELS];
   Receiver midiReceiver;
+  Font soundFont;
 
   public TyphoonSound() {
     System.out.println("    ____                                ");
@@ -73,18 +74,20 @@ public class TyphoonSound implements AutoCloseable {
 
   public void putWav(int[] wav) {
     for (TsClip clip : ch) {
-      if (clip == null) continue;
-      int d0 = (int) (clip.getSampleRate());
-      if (d0 == 0) continue;
+      if (clip == null || clip.instrument == null) continue;
+      byte[] pcm = soundFont.pcm;
+      int sampleEnd = clip.instrument.sampleStart + clip.instrument.sampleSize;
+      int d0 = clip.sampleRate;
       int d1 = (int) (audioFormat.getSampleRate());
       for (int i = 0; i < wav.length; i++) {
         clip.r += d0;
         clip.framePosition += clip.r / d1;
         clip.r %= d1;
-        if (clip.framePosition >= clip.loopEnd) {
-          clip.framePosition = clip.loopStart;
+        if (clip.framePosition >= sampleEnd) {
+          clip.instrument = null; // drop
+          break;
         } else {
-          wav[i] += clip.data[clip.framePosition] << 6;
+          wav[i] += pcm[clip.framePosition * 2 + 1] << 6;
         }
       }
     }
@@ -102,12 +105,23 @@ public class TyphoonSound implements AutoCloseable {
     line.write(bytes, 0, bytes.length);
   }
 
-  int[] soundBank = new int[64];
-  public void loadInstrument(int sample, int sampleStart, int sampleEnd) {
-    soundBank[sample * 2] = sampleStart;
-    soundBank[sample * 2 + 1] = sampleEnd;
+  /**
+   * Loads instruments from sound font to the sound system synthesizer.
+   * This enables software wave table synthesizer.
+   * @param soundFont with instruments
+   */
+  public void loadAllInstruments(Font soundFont) {
+    this.soundFont = soundFont;
+    for (int i = 0; i < ch.length; i++) {
+      ch[i] = new TsClip();
+    }
   }
 
+  /**
+   * Sets the receiver to which sound system will deliver MIDI messages.
+   * This enables external (e.g. hardware) synthesizer.
+   * @param midiReceiver the midi receiver
+   */
   public void setMidiReceiver(Receiver midiReceiver) {
     this.midiReceiver = midiReceiver;
   }
@@ -122,57 +136,27 @@ public class TyphoonSound implements AutoCloseable {
   }
 
   public void noteOffOn(int channel, int sample, int key, boolean on) {
-    if (sample == 0 || key == 0) return;
-    if (midiReceiver == null) {
-      if (on) {
-        ch[channel].setFramePosition(soundBank[sample * 2]);
-        ch[channel].setLoopPoints(soundBank[sample * 2 + 1], soundBank[sample * 2 + 1]);
-        int C4SPD = 8363;
-        ch[channel].setSampleRate((int) (C4SPD * Math.exp((key - 60) / 12.0 * Math.log(2))));
-      }
-      return;
+    if (midiReceiver != null) {
+      sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample, 0, -1);
+      sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, 0x60, -1);
     }
-    sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample, 0, -1);
-    sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, 0x60, -1);
+    if (soundFont != null) {
+      if (on) {
+        ch[channel].sampleRate = (int) (soundFont.c4spd * Math.exp((key - 60) / 12.0 * Math.log(2)));
+        Instrument instrument = soundFont.getInstruments()[sample];
+        ch[channel].instrument = instrument;
+        ch[channel].framePosition = instrument.sampleStart;
+      } else {
+        ch[channel].instrument = null;
+      }
+    }
   }
 
-  public static class TsClip extends DummyClip {
-    // FIXME: 2022-08-18 Clip is not designed to change pitch in real time
-    //private AudioFormat format;
-    byte[] data;
-    private float sampleRate;
-    private int framePosition;
-    private int loopStart;
-    private int loopEnd;
+  public static class TsClip {
+    Instrument instrument;
+    int sampleRate;
+    int framePosition;
     int r;
-
-    public float getSampleRate() {
-      return sampleRate;
-    }
-
-    public void setSampleRate(float sampleRate) {
-      this.sampleRate = sampleRate;
-    }
-
-    @Override
-    public void open(AudioFormat format, byte[] data, int offset, int bufferSize) {
-      //this.format = format;
-      this.data = new byte[bufferSize];
-      this.sampleRate = format.getSampleRate();
-      System.arraycopy(data, offset, this.data, 0, bufferSize);
-    }
-
-    @Override
-    public void setFramePosition(int framePosition) {
-      this.framePosition = framePosition;
-    }
-
-    @Override
-    public void setLoopPoints(int start, int end) {
-      loopStart = start;
-      loopEnd = end;
-    }
-
   }
 
   public static class Instrument {

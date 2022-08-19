@@ -1,22 +1,13 @@
 package ab;
 
-import com.sun.media.sound.SF2Instrument;
-import com.sun.media.sound.SF2InstrumentRegion;
-import com.sun.media.sound.SF2Layer;
-import com.sun.media.sound.SF2LayerRegion;
-import com.sun.media.sound.SF2Region;
-import com.sun.media.sound.SF2Sample;
-import com.sun.media.sound.SF2Soundbank;
-
 import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MidiDevice;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
-import javax.sound.midi.Patch;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.Sequencer;
+import javax.sound.midi.Soundbank;
 import javax.sound.midi.Synthesizer;
-import javax.sound.sampled.AudioFormat;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,58 +31,6 @@ public class App {
     }
   }
 
-  public static SF2Sample createSample(SF2Soundbank sf2, AmigaMod mod, int modSample) {
-    int sampleSize = mod.getSampleSize(modSample);
-    byte[] modBytes = mod.bytes.array();
-    byte[] insBytes = new byte[sampleSize * 2];
-    for (int i = 0, i0 = mod.getSampleStart(modSample), i1 = 1; i < sampleSize; i++, i0++, i1 += 2) {
-      insBytes[i1] = modBytes[i0];
-    }
-
-    SF2Sample sample = new SF2Sample(sf2);
-    sample.setName(mod.getSampleName(modSample));
-    sample.setData(insBytes);
-    if (mod.isLoop(modSample)) {
-      int loopPoint = mod.getLoopStart(modSample);
-      sample.setStartLoop(loopPoint);
-      loopPoint += mod.getLoopLength(modSample);
-      sample.setEndLoop(loopPoint);
-    }
-    sample.setSampleRate(8363);
-    sample.setSampleType(1);
-    sample.setOriginalPitch(60);
-    sf2.addResource(sample);
-
-    return sample;
-  }
-
-  public static SF2Layer createLayer(SF2Soundbank sf2, AmigaMod mod, int modSample) {
-    SF2LayerRegion region = new SF2LayerRegion();
-    region.setSample(createSample(sf2, mod, modSample));
-    if (mod.isLoop(modSample)) region.putInteger(SF2Region.GENERATOR_SAMPLEMODES, 3);
-
-    SF2Layer layer = new SF2Layer(sf2);
-    layer.setName(mod.getSampleName(modSample));
-    layer.getRegions().add(region);
-    sf2.addResource(layer);
-    return layer;
-  }
-
-  public static SF2Soundbank createSoundbank(AmigaMod mod) {
-    SF2Soundbank sf2 = new SF2Soundbank();
-    sf2.setName(mod.getSongName());
-    for (int i = 1; i < mod.samplesSize; i++) {
-      SF2Instrument instrument = new SF2Instrument(sf2);
-      instrument.setPatch(new Patch(0, i));
-      instrument.setName(mod.getSampleName(i));
-      sf2.addInstrument(instrument);
-      SF2InstrumentRegion instrumentRegion = new SF2InstrumentRegion();
-      instrumentRegion.setLayer(createLayer(sf2, mod, i));
-      instrument.getRegions().add(instrumentRegion);
-    }
-    return sf2;
-  }
-
   public static void main( String[] args ) {
     InputStream inputStream;
     try {
@@ -101,24 +40,11 @@ public class App {
     }
     AmigaMod mod = new AmigaMod(inputStream);
     TyphoonSound sound = new TyphoonSound();
-    byte[] bytes = mod.bytes.array();
-    for (int i = 0; i < 4; i++) {
-      TyphoonSound.TsClip clip = new TyphoonSound.TsClip();
-      clip.open(new AudioFormat(8363, 8, 1, true, false), bytes, 0, bytes.length);
-      clip.setFramePosition(0x43C + mod.patternSize * 0x400);
-      clip.start();
-      clip.setSampleRate(0);
-      sound.ch[i] = clip;
-    }
-    for (int i = 0; i < mod.samplesSize; i++) {
-      sound.loadInstrument(i, mod.getSampleStart(i), mod.getSampleStart(i) + mod.getSampleSize(i));
-    }
 
     try {
       MidiDevice midiDevice = MidiSystem.getMidiDevice(MidiSystem.getMidiDeviceInfo()[0]);
       midiDevice.open();
-      sound.setMidiReceiver(midiDevice.getReceiver());
-      Synthesizer synthesizer = (Synthesizer) midiDevice;
+//      sound.setMidiReceiver(midiDevice.getReceiver());
 
       byte[] pcm8 = mod.bytes.array();
       byte[] pcm16 = new byte[pcm8.length * 2];
@@ -133,7 +59,9 @@ public class App {
         ins[i].setSampe(mod.getSampleStart(i), mod.getSampleSize(i));
         if (mod.isLoop(i)) ins[i].setLoop(mod.getLoopStart(i), mod.getLoopLength(i));
       }
-      synthesizer.loadAllInstruments(MidiSystem.getSoundbank(new ByteArrayInputStream(soundFont.toByteArray())));
+      Soundbank soundbank = MidiSystem.getSoundbank(new ByteArrayInputStream(soundFont.toByteArray()));
+      ((Synthesizer) midiDevice).loadAllInstruments(soundbank);
+      sound.loadAllInstruments(soundFont);
 
     } catch (MidiUnavailableException | InvalidMidiDataException | IOException ignore) {
     }
