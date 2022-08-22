@@ -33,6 +33,7 @@ import java.util.function.Function;
 
 public class TyphoonSound implements AutoCloseable {
 
+  public static final int C4_MIDI = 60;
   public static final AudioFormat AUDIO_CD = new AudioFormat(44_100, 16, 2, true, false);
   public static final int CHANNELS = 0x40;
 
@@ -142,7 +143,7 @@ public class TyphoonSound implements AutoCloseable {
     }
     if (soundFont != null) {
       if (on) {
-        ch[channel].sampleRate = (int) (soundFont.c4spd * Math.exp((key - 60) / 12.0 * Math.log(2)));
+        ch[channel].sampleRate = (int) (soundFont.c4spd * Math.exp((key - C4_MIDI) / 12.0 * Math.log(2)));
         Instrument instrument = soundFont.getInstruments()[sample];
         ch[channel].instrument = instrument;
         ch[channel].framePosition = instrument.sampleStart;
@@ -254,7 +255,7 @@ public class TyphoonSound implements AutoCloseable {
         shdr.putInt(start);
         shdr.putInt(start + ins.loopSize);
         shdr.putInt(c4spd);
-        shdr.putInt(60); // C4
+        shdr.putInt(C4_MIDI); // C4
         shdr.putShort((short) 1);
       }
       phdr.put(paddedStr("EOP"));

@@ -25,6 +25,13 @@ import java.util.Arrays;
 
 public class AmigaMod {
 
+  public static final int C4_MIDI = 60;
+  public static final double C9_FREQUENCY = 8372.018; // Hz
+  public static final double NTSC_COLORBURST = 1_000_000.0 * 315 / 88; // 315/88 MHz
+  // See how these constants were made
+  public static final int C4_DIVISOR = (int) Math.round(NTSC_COLORBURST / C9_FREQUENCY); // 428
+  public static final int C4_RATE = (int) Math.round(NTSC_COLORBURST / C4_DIVISOR); // 8363
+
   public final ByteBuffer bytes;
   public final int patternSize;
   public int samplesSize = 0x20;
@@ -155,15 +162,30 @@ public class AmigaMod {
     private final int data;
     private final int midiNote;
 
+    /**
+     * Divisors table have features in its structure.
+     * It cannot be replaced by 428.0 / Math.exp((noteMidi - 60) / 12.0 * Math.log(2))
+     */
+    private static final int[] DIVISORS = {
+        856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453,
+        428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226,
+        214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113,
+    };
+
+    public static int noteCodeToMidi(int noteCode) {
+      double log2 = Math.log((double) C4_DIVISOR / noteCode) / Math.log(2);
+      return (int) Math.round(C4_MIDI + log2 * 12);
+    }
+
+    public static int noteMidiToCode(int noteMidi) {
+      noteMidi = noteMidi - C4_MIDI + 12;
+      return noteMidi < 0 ? 0 : noteMidi < DIVISORS.length ? DIVISORS[noteMidi] : 0;
+    }
+
     public Note(int data) {
       this.data = data;
       int noteCode = getNoteCode();
-      if (noteCode > 0) {
-        double log2 = Math.log(428.0 / noteCode) / Math.log(2);
-        midiNote = (int) Math.round(60 + log2 * 12);
-      } else {
-        midiNote = 0;
-      }
+      midiNote = noteCode > 0 ? noteCodeToMidi(noteCode) : 0;
     }
 
     public int getNoteCode() {
