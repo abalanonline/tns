@@ -80,6 +80,7 @@ public class TyphoonSound implements AutoCloseable {
       int sampleEnd = clip.instrument.sampleStart + clip.instrument.sampleSize;
       int d0 = clip.sampleRate;
       int d1 = (int) (audioFormat.getSampleRate());
+      int v = clip.volume * 2 / 3;
       for (int i = 0; i < wav.length; i++) {
         clip.r += d0;
         clip.framePosition += clip.r / d1;
@@ -88,7 +89,7 @@ public class TyphoonSound implements AutoCloseable {
           clip.instrument = null; // drop
           break;
         } else {
-          wav[i] += pcm[clip.framePosition * 2 + 1] << 6;
+          wav[i] += pcm[clip.framePosition * 2 + 1] * v;
         }
       }
     }
@@ -136,16 +137,17 @@ public class TyphoonSound implements AutoCloseable {
     midiReceiver.send(message, timeStamp);
   }
 
-  public void noteOffOn(int channel, int sample, int key, boolean on) {
+  public void noteOffOn(int channel, int sample, int key, int volume, boolean on) {
     if (midiReceiver != null) {
       sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample, 0, -1);
-      sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, 0x60, -1);
+      sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, volume, -1);
     }
     if (soundFont != null) {
       if (on) {
         ch[channel].sampleRate = (int) (soundFont.c4spd * Math.exp((key - C4_MIDI) / 12.0 * Math.log(2)));
         Instrument instrument = soundFont.getInstruments()[sample];
         ch[channel].instrument = instrument;
+        ch[channel].volume = volume;
         ch[channel].framePosition = instrument.sampleStart;
       } else {
         ch[channel].instrument = null;
@@ -156,6 +158,7 @@ public class TyphoonSound implements AutoCloseable {
   public static class TsClip {
     Instrument instrument;
     int sampleRate;
+    int volume;
     int framePosition;
     int r;
   }

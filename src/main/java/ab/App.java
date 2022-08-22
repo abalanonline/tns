@@ -73,6 +73,7 @@ public class App {
     Instant now = Instant.now();
     int[] chSample = new int[0x20];
     int[] chNote = new int[0x20];
+    int[] chVolume = new int[0x20];
     for (AmigaMod.Sequencer sequencer = mod.newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
       try {
         System.out.print(String.format("\r  %02d/%02d", sequencer.getOrder(), sequencer.getRow()));
@@ -80,13 +81,11 @@ public class App {
         for (int c = 0; c < 4; c++) {
           AmigaMod.Note note = notes[c];
           System.out.print(" | " + note);
-          if (note.isNoteOn()) {
-            sound.noteOffOn(c, chSample[c], chNote[c], false);
-            chSample[c] = note.getSample();
-            chNote[c] = note.getMidiNote();
-            sound.noteOffOn(c, chSample[c], chNote[c], true);
-          }
+          int volume = 0x40;
           switch (note.getFxCommand()) {
+            case 0xC:
+              volume = note.getFxData();
+              break;
             case 0xF:
               int d = note.getFxData();
               if (d == 0) break;
@@ -96,6 +95,13 @@ public class App {
                 bpmTempo = d;
               }
               break;
+          }
+          if (note.isNoteOn()) {
+            sound.noteOffOn(c, chSample[c], chNote[c], chVolume[c], false);
+            if (note.getSample() > 0) chSample[c] = note.getSample();
+            chNote[c] = note.getMidiNote();
+            chVolume[c] = volume * 3 / 2;
+            sound.noteOffOn(c, chSample[c], chNote[c], chVolume[c], true);
           }
         }
         System.out.println();
