@@ -17,6 +17,9 @@
 package ab;
 
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MidiDevice;
+import javax.sound.midi.MidiSystem;
+import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Receiver;
 import javax.sound.midi.ShortMessage;
 import javax.sound.sampled.AudioFormat;
@@ -40,23 +43,52 @@ public class TyphoonSound implements AutoCloseable {
   private final AudioFormat audioFormat;
   private final SourceDataLine line;
   public final TsClip[] ch = new TsClip[CHANNELS];
-  Receiver midiReceiver;
+  public Receiver midiReceiver;
   Font soundFont;
+  public int midiOutput = 1;
 
-  public TyphoonSound() {
+  /**
+   * Start sound system. The output line will be open and ready for pcm output and wavetable music synthesis.
+   * For pcm: sound.getWav(), write to array, sound.putWav()
+   * For music: sound.loadAllInstruments(), sound.noteOffOn(), sound.putWav(sound.getWav());
+   * @param audioFormat the desired audio format
+   * @param latencyMs the latency in ms, must be longer than maximum estimated time between sound.putWav()
+   */
+  public TyphoonSound(AudioFormat audioFormat, int latencyMs) {
     System.out.println("    ____                                ");
     System.out.println("     /        __  /__   __   __   __    ");
     System.out.println("    /  /__/ /__/ /  / /__/ /__/ /  /    ");
     System.out.println("       __/ /    tracker                 ");
     System.out.println();
-    audioFormat = AUDIO_CD;
+
+    try {
+      MidiDevice midiDevice = MidiSystem.getMidiDevice(MidiSystem.getMidiDeviceInfo()[0]);
+      midiDevice.open();
+      this.midiReceiver = midiDevice.getReceiver();
+    } catch (MidiUnavailableException e) {
+      throw new IllegalStateException(e);
+    }
+
+    this.audioFormat = audioFormat;
     try {
       line = AudioSystem.getSourceDataLine(audioFormat);
-      line.open(audioFormat);
+      if (latencyMs > 0) {
+        line.open(audioFormat, (int) (audioFormat.getFrameRate() * latencyMs / 1000) * audioFormat.getFrameSize());
+      } else {
+        line.open(audioFormat);
+      }
     } catch (LineUnavailableException e) {
       throw new IllegalStateException(e);
     }
     line.start();
+  }
+
+  public TyphoonSound(AudioFormat audioFormat) {
+    this(audioFormat, 0);
+  }
+
+  public TyphoonSound() {
+    this(AUDIO_CD);
   }
 
   @Override
@@ -128,6 +160,10 @@ public class TyphoonSound implements AutoCloseable {
     this.midiReceiver = midiReceiver;
   }
 
+  public void setMidiOutput(int midiOutput) {
+    this.midiOutput = midiOutput;
+  }
+
   public void sendMessage(int command, int channel, int data1, int data2, long timeStamp) {
     ShortMessage message = new ShortMessage();
     try {
@@ -137,12 +173,22 @@ public class TyphoonSound implements AutoCloseable {
     midiReceiver.send(message, timeStamp);
   }
 
+  /**
+   * Note On - Note Off, press key - release key.
+   * @param channel midi channel 0-15 or tracker 0-3 (0-7)
+   * @param sample midi program number 1-128 or tracker instrument 1-16, sample 0 - use current, no program change
+   * @param key midi key, 60 for middle C
+   * @param volume midi velocity - 64 mezzo piano, 80 mezzo forte, 96 forte
+   * @param on note on if true, note off if false
+   */
   public void noteOffOn(int channel, int sample, int key, int volume, boolean on) {
-    if (midiReceiver != null) {
-      sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample, 0, -1);
+    if ((midiOutput & 1) != 0) {
+      if (sample != 0) {
+        sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample - 1, 0, -1);
+      }
       sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, volume, -1);
     }
-    if (soundFont != null) {
+    if ((midiOutput & 2) != 0) {
       if (on) {
         ch[channel].sampleRate = (int) (soundFont.c4spd * Math.exp((key - C4_MIDI) / 12.0 * Math.log(2)));
         Instrument instrument = soundFont.getInstruments()[sample];
