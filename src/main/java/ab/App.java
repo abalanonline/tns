@@ -1,17 +1,23 @@
 package ab;
 
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MetaEventListener;
+import javax.sound.midi.MetaMessage;
 import javax.sound.midi.MidiDevice;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
+import javax.sound.midi.Receiver;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.Sequencer;
+import javax.sound.midi.ShortMessage;
 import javax.sound.midi.Soundbank;
 import javax.sound.midi.Synthesizer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -23,8 +29,15 @@ public class App {
     try {
       AmigaMod mod = new AmigaMod(Files.newInputStream(Paths.get("test.mod")));
       Sequence sequence = MidiSystem.getSequence(new ByteArrayInputStream(mod.toMidi()));
+      Synthesizer synthesizer = MidiSystem.getSynthesizer();
+      synthesizer.open();
 
-      Sequencer sequencer = MidiSystem.getSequencer();
+      Sequencer sequencer = MidiSystem.getSequencer(false);
+      sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
+      sequencer.addMetaEventListener(meta -> {
+        if (meta.getType() == 5) System.out.println(new String(meta.getData()));
+      });
+
       sequencer.open();
       sequencer.setSequence(sequence);
       sequencer.start();
