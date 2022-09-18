@@ -39,6 +39,8 @@ public class TyphoonSound implements AutoCloseable {
   public static final int C4_MIDI = 60;
   public static final AudioFormat AUDIO_CD = new AudioFormat(44_100, 16, 2, true, false);
   public static final int CHANNELS = 0x40;
+  public static final int NOTE_OFF_VELOCITY = 0x40;
+  public static final int MIDI_DEFAULT_VELOCITY = 0x60;
 
   private final AudioFormat audioFormat;
   private final SourceDataLine line;
@@ -171,6 +173,10 @@ public class TyphoonSound implements AutoCloseable {
     } catch (InvalidMidiDataException ignore) {
     }
     midiReceiver.send(message, timeStamp);
+  }
+
+  public void noteOffOn(int channel, int sample, int key, boolean on) {
+    noteOffOn(channel, sample, key, MIDI_DEFAULT_VELOCITY, on);
   }
 
   /**

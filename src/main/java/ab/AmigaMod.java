@@ -16,6 +16,8 @@
 
 package ab;
 
+import javax.sound.midi.ShortMessage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -115,6 +117,91 @@ public class AmigaMod {
 
   public int getLoopLength(int sample) {
     return sample == 0 ? samples[1] : bytes.getShort(sample * 0x1E + 0x12) << 1 & 0x1FFFF;
+  }
+
+  public byte[] toMidi() {
+    ByteArrayOutputStream stream = new ByteArrayOutputStream();
+    stream.write(0x00);
+    stream.write(0xFF);
+    stream.write(0x58);
+    stream.write(0x04);
+    stream.write(0x04);
+    stream.write(0x02);
+    stream.write(0x18);
+    stream.write(0x08);
+    stream.write(0x00);
+    stream.write(0xFF);
+    stream.write(0x51);
+    stream.write(0x03);
+    stream.write(0x07);
+    stream.write(0xA1);
+    stream.write(0x20);
+    stream.write(0x00);
+    int[] chSample = new int[0x20];
+    int[] chNote = new int[0x20];
+    for (Sequencer sequencer = newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
+      AmigaMod.Note[] notes = sequencer.getNotes();
+      StringBuffer s = new StringBuffer(String.format("\r  %02d/%02d", sequencer.getOrder(), sequencer.getRow()));
+      for (int c = 0; c < 4; c++) {
+        AmigaMod.Note note = notes[c];
+        s.append(" | ").append(note);
+        if (note.isNoteOn()) {
+          if (chSample[c] != 0) {
+            stream.write(ShortMessage.PROGRAM_CHANGE + c);
+            stream.write(chSample[c]);
+            stream.write(0);
+          }
+          stream.write(ShortMessage.NOTE_OFF + c);
+          stream.write(chNote[c]);
+          stream.write(0x40);
+          stream.write(0);
+
+          chSample[c] = note.getSample();
+          chNote[c] = note.getMidiNote();
+
+          if (chSample[c] != 0) {
+            stream.write(ShortMessage.PROGRAM_CHANGE + c);
+            stream.write(chSample[c]);
+            stream.write(0);
+          }
+          stream.write(ShortMessage.NOTE_ON + c);
+          stream.write(chNote[c]);
+          stream.write(0x60);
+          stream.write(0);
+        }
+        switch (note.getFxCommand()) {
+          case 0xF:
+            int d = note.getFxData();
+            if (d == 0) break;
+            break;
+        }
+      }
+      stream.write(0xFF);
+      stream.write(0x05);
+      stream.write(s.length());
+      try {
+        stream.write(s.toString().getBytes());
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+      stream.write(0x18);
+      for (int c = 0; c < 4; c++) {
+        AmigaMod.Note note = notes[c];
+        switch (note.getFxCommand()) {
+          case 0xD:
+            for (int i = sequencer.getOrder(); i == sequencer.getOrder(); sequencer.inc()) {}
+            break;
+        }
+      }
+    }
+    stream.write(0xFF);
+    stream.write(0x2F);
+    stream.write(0x00);
+
+    ByteBuffer result = ByteBuffer.wrap(new byte[stream.size() + 0x16]);
+    result.putInt(0x4D546864).putInt(6).putShort((short) 0).putShort((short) 1).putShort((short) 0x60);
+    result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
+    return result.array();
   }
 
   public Sequencer newSequencer() {
