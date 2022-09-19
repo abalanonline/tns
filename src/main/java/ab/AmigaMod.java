@@ -122,21 +122,6 @@ public class AmigaMod {
   public byte[] toMidi() {
     ByteArrayOutputStream stream = new ByteArrayOutputStream();
     stream.write(0x00);
-    stream.write(0xFF);
-    stream.write(0x58);
-    stream.write(0x04);
-    stream.write(0x04);
-    stream.write(0x02);
-    stream.write(0x18);
-    stream.write(0x08);
-    stream.write(0x00);
-    stream.write(0xFF);
-    stream.write(0x51);
-    stream.write(0x03);
-    stream.write(0x07);
-    stream.write(0xA1);
-    stream.write(0x20);
-    stream.write(0x00);
     int[] chSample = new int[0x20];
     int[] chNote = new int[0x20];
     for (Sequencer sequencer = newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
@@ -184,7 +169,7 @@ public class AmigaMod {
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
-      stream.write(0x18);
+      stream.write(0x01);
       for (int c = 0; c < 4; c++) {
         AmigaMod.Note note = notes[c];
         switch (note.getFxCommand()) {
@@ -199,7 +184,7 @@ public class AmigaMod {
     stream.write(0x00);
 
     ByteBuffer result = ByteBuffer.wrap(new byte[stream.size() + 0x16]);
-    result.putInt(0x4D546864).putInt(6).putShort((short) 0).putShort((short) 1).putShort((short) 0x60);
+    result.putInt(0x4D546864).putInt(6).putShort((short) 1).putShort((short) 1).putShort((short) 0x04);
     result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
     return result.array();
   }

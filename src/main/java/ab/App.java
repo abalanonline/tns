@@ -28,7 +28,9 @@ public class App {
   public static void testMidi() {
     try {
       AmigaMod mod = new AmigaMod(Files.newInputStream(Paths.get("test.mod")));
-      Sequence sequence = MidiSystem.getSequence(new ByteArrayInputStream(mod.toMidi()));
+      byte[] midiBytes = mod.toMidi();
+      Files.write(Paths.get("target", "mod.mid"), midiBytes);
+      Sequence sequence = MidiSystem.getSequence(new ByteArrayInputStream(midiBytes));
       Synthesizer synthesizer = MidiSystem.getSynthesizer();
       synthesizer.open();
 
