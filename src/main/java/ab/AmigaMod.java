@@ -20,6 +20,7 @@ import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MetaMessage;
 import javax.sound.midi.MidiMessage;
 import javax.sound.midi.ShortMessage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -124,7 +125,7 @@ public class AmigaMod {
     return sample == 0 ? samples[1] : bytes.getShort(sample * 0x1E + 0x12) << 1 & 0x1FFFF;
   }
 
-  public byte[] toMidi() {
+  public byte[] toMidiBytes() {
     ByteArrayOutputStream stream = new ByteArrayOutputStream();
     stream.write(0x00);
     getSequencer(midiMessage -> {
@@ -144,6 +145,31 @@ public class AmigaMod {
     result.putInt(0x4D546864).putInt(6).putShort((short) 1).putShort((short) 1).putShort((short) 0x04);
     result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
     return result.array();
+  }
+
+  public InputStream toMidi() {
+    return new ByteArrayInputStream(toMidiBytes());
+  }
+
+  public TyphoonSound.Font toSoundFont() {
+    byte[] pcm8 = this.bytes.array();
+    byte[] pcm16 = new byte[pcm8.length * 2];
+    for (int i = 0, i1 = 1; i < pcm8.length; i++, i1 += 2) {
+      pcm16[i1] = pcm8[i];
+    }
+
+    TyphoonSound.Font soundFont = new TyphoonSound.Font(this.samplesSize, pcm16, 8363, this.getSongName());
+    TyphoonSound.Instrument[] ins = soundFont.getInstruments();
+    for (int i = 0; i < ins.length; i++) {
+      ins[i].setName(this.getSampleName(i));
+      ins[i].setSampe(this.getSampleStart(i), this.getSampleSize(i));
+      if (this.isLoop(i)) ins[i].setLoop(this.getLoopStart(i), this.getLoopLength(i));
+    }
+    return soundFont;
+  }
+
+  public InputStream toSoundbank() {
+    return new ByteArrayInputStream(toSoundFont().toByteArray());
   }
 
   public Sequencer getSequencer(Consumer<MidiMessage> consumer) {
