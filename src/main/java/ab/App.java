@@ -23,16 +23,25 @@ public class App {
       Sequence sequence = MidiSystem.getSequence(mod.toMidi());
       Soundbank soundbank = MidiSystem.getSoundbank(mod.toSoundbank());
 
-      Synthesizer synthesizer = MidiSystem.getSynthesizer();
-      synthesizer.open();
-      synthesizer.loadAllInstruments(soundbank);
       MidiDevice midiDevice = MidiSystem.getMidiDevice(MidiSystem.getMidiDeviceInfo()[0]);
-      midiDevice = synthesizer;
       midiDevice.open();
       Receiver midiReceiver = midiDevice.getReceiver();
 
+      if (useSunSynthesizer) {
+        Synthesizer synthesizer = MidiSystem.getSynthesizer();
+        synthesizer.open();
+        synthesizer.loadAllInstruments(soundbank);
+        midiReceiver = synthesizer.getReceiver();
+      } else {
+        sound.loadAllInstruments(mod.toSoundFont());
+        midiReceiver = sound;
+      }
+
       MetaEventListener metaEventListener = metaMessage -> {
-        if (metaMessage.getType() == 1) System.out.println(new String(metaMessage.getData()));
+        if (metaMessage.getType() == 1) {
+          System.out.println(new String(metaMessage.getData()));
+          sound.putWav(sound.getWav()); // FIXME: 2022-09-19 poor design
+        }
       };
 
       if (useSunSequencer) {
@@ -45,6 +54,7 @@ public class App {
         sequencer.start();
       } else {
         // TNS sequencer
+        final Receiver finalMidiReceiver = midiReceiver;
         AtomicLong milliseconds = new AtomicLong(120);
         mod.getSequencer(midiMessage -> {
           if (midiMessage instanceof MetaMessage) {
@@ -59,7 +69,7 @@ public class App {
               } catch (InterruptedException ignore) {
               }
             }
-          } else midiReceiver.send(midiMessage, -1);
+          } else finalMidiReceiver.send(midiMessage, -1);
         }).start();
       }
     } catch (Exception e) {
@@ -68,8 +78,8 @@ public class App {
   }
 
   public static void main( String[] args ) {
-    playAmigaMod("test.mod", true, true);
-//    playAmigaMod("test.mod", false, false);
+//    playAmigaMod("test.mod", true, true);
+    playAmigaMod("test.mod", false, false);
   }
 
 }

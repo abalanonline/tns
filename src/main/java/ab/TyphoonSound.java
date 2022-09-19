@@ -18,6 +18,7 @@ package ab;
 
 import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MidiDevice;
+import javax.sound.midi.MidiMessage;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Receiver;
@@ -34,7 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-public class TyphoonSound implements AutoCloseable {
+public class TyphoonSound implements AutoCloseable, Receiver {
 
   public static final int C4_MIDI = 60;
   public static final AudioFormat AUDIO_CD = new AudioFormat(44_100, 16, 2, true, false);
@@ -203,6 +204,33 @@ public class TyphoonSound implements AutoCloseable {
         ch[channel].framePosition = instrument.sampleStart;
       } else {
         ch[channel].instrument = null;
+      }
+    }
+  }
+
+  @Override
+  public void send(MidiMessage midiMessage, long timeStamp) {
+    if (midiMessage instanceof ShortMessage) {
+      ShortMessage shortMessage = (ShortMessage) midiMessage;
+      int channel = shortMessage.getChannel();
+      switch (shortMessage.getCommand()) {
+        case ShortMessage.PROGRAM_CHANGE:
+          int sample = shortMessage.getData1();
+          Instrument instrument = soundFont.getInstruments()[sample];
+          ch[channel].instrument = instrument;
+          break;
+        case ShortMessage.NOTE_ON:
+          int note = shortMessage.getData1();
+          int velocity = shortMessage.getData2();
+          ch[channel].sampleRate = (int) (soundFont.c4spd * Math.exp((note - C4_MIDI) / 12.0 * Math.log(2)));
+          ch[channel].volume = velocity;
+          ch[channel].framePosition = ch[channel].instrument.sampleStart;
+          break;
+        case ShortMessage.NOTE_OFF:
+          ch[channel].instrument = null;
+          break;
+        default:
+          throw new IllegalStateException("not implemented");
       }
     }
   }
