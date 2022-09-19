@@ -16,14 +16,19 @@
 
 package ab;
 
+import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MetaMessage;
+import javax.sound.midi.MidiMessage;
 import javax.sound.midi.ShortMessage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 public class AmigaMod {
 
@@ -122,63 +127,15 @@ public class AmigaMod {
   public byte[] toMidi() {
     ByteArrayOutputStream stream = new ByteArrayOutputStream();
     stream.write(0x00);
-    int[] chSample = new int[0x20];
-    int[] chNote = new int[0x20];
-    for (Sequencer sequencer = newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
-      AmigaMod.Note[] notes = sequencer.getNotes();
-      StringBuffer s = new StringBuffer(String.format("\r  %02d/%02d", sequencer.getOrder(), sequencer.getRow()));
-      for (int c = 0; c < 4; c++) {
-        AmigaMod.Note note = notes[c];
-        s.append(" | ").append(note);
-        if (note.isNoteOn()) {
-          if (chSample[c] != 0) {
-            stream.write(ShortMessage.PROGRAM_CHANGE + c);
-            stream.write(chSample[c]);
-            stream.write(0);
-          }
-          stream.write(ShortMessage.NOTE_OFF + c);
-          stream.write(chNote[c]);
-          stream.write(0x40);
-          stream.write(0);
-
-          chSample[c] = note.getSample();
-          chNote[c] = note.getMidiNote();
-
-          if (chSample[c] != 0) {
-            stream.write(ShortMessage.PROGRAM_CHANGE + c);
-            stream.write(chSample[c]);
-            stream.write(0);
-          }
-          stream.write(ShortMessage.NOTE_ON + c);
-          stream.write(chNote[c]);
-          stream.write(0x60);
-          stream.write(0);
-        }
-        switch (note.getFxCommand()) {
-          case 0xF:
-            int d = note.getFxData();
-            if (d == 0) break;
-            break;
-        }
-      }
-      stream.write(0xFF);
-      stream.write(0x05);
-      stream.write(s.length());
+    getSequencer(midiMessage -> {
       try {
-        stream.write(s.toString().getBytes());
+        stream.write(midiMessage.getMessage());
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
-      stream.write(0x01);
-      for (int c = 0; c < 4; c++) {
-        AmigaMod.Note note = notes[c];
-        switch (note.getFxCommand()) {
-          case 0xD:
-            for (int i = sequencer.getOrder(); i == sequencer.getOrder(); sequencer.inc()) {}
-            break;
-        }
-      }
-    }
+      stream.write(midiMessage instanceof MetaMessage && ((MetaMessage) midiMessage).getType() == 1 ? 1 : 0);
+    }).start();
+
     stream.write(0xFF);
     stream.write(0x2F);
     stream.write(0x00);
@@ -189,12 +146,18 @@ public class AmigaMod {
     return result.array();
   }
 
-  public Sequencer newSequencer() {
-    return new Sequencer();
+  public Sequencer getSequencer(Consumer<MidiMessage> consumer) {
+    return new Sequencer(consumer);
   }
 
   public class Sequencer {
+    private final Consumer<MidiMessage> consumer;
+
     private int row;
+
+    public Sequencer(Consumer<MidiMessage> consumer) {
+      this.consumer = consumer;
+    }
 
     public void inc() {
       this.row++;
@@ -225,6 +188,84 @@ public class AmigaMod {
       }
       return result;
     }
+
+    private void sendMessage(int command, int channel, int data1, int data2, long timeStamp) {
+      ShortMessage message = new ShortMessage();
+      try {
+        message.setMessage(command, channel, data1, data2);
+      } catch (InvalidMidiDataException ignore) {
+      }
+      consumer.accept(message);
+    }
+
+    private void noteOffOn(int channel, int sample, int key, boolean on) {
+      if (sample != 0) {
+        sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample, 0, -1);
+      }
+      sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, 0x60, -1);
+    }
+
+    private void sendMeta(int type, byte[] data) {
+      try {
+        consumer.accept(new MetaMessage(type, data, data.length));
+      } catch (InvalidMidiDataException e) {
+        throw new IllegalStateException(e);
+      }
+    }
+
+    private void setSpeedTempo(int speed, int tempo) {
+      long microseconds = 10_000_000L * speed / tempo;
+      byte[] data = BigInteger.valueOf(microseconds).toByteArray();
+      sendMeta(0x51, data);
+    }
+
+    private void sendText(String s) {
+      sendMeta(1, s.getBytes());
+    }
+
+    public void start() {
+      int bpmSpeed = 6;
+      int bpmTempo = 125;
+      setSpeedTempo(bpmSpeed, bpmTempo);
+      int[] chSample = new int[0x20];
+      int[] chNote = new int[0x20];
+      for (; this.getLoop() == 0; this.inc()) {
+        StringBuffer s = new StringBuffer(String.format("\r  %02d/%02d", this.getOrder(), this.getRow()));
+        Note[] notes = this.getNotes();
+        for (int c = 0; c < 4; c++) {
+          Note note = notes[c];
+          s.append(" | ").append(note);
+          if (note.isNoteOn()) {
+            this.noteOffOn(c, chSample[c], chNote[c], false);
+            chSample[c] = note.getSample();
+            chNote[c] = note.getMidiNote();
+            this.noteOffOn(c, chSample[c], chNote[c], true);
+          }
+          switch (note.getFxCommand()) {
+            case 0xF:
+              int d = note.getFxData();
+              if (d == 0) break;
+              if (d < 0x20) {
+                bpmSpeed = d;
+              } else {
+                bpmTempo = d;
+              }
+              setSpeedTempo(bpmSpeed, bpmTempo);
+              break;
+          }
+        }
+        sendText(s.toString());
+        for (int c = 0; c < 4; c++) {
+          Note note = notes[c];
+          switch (note.getFxCommand()) {
+            case 0xD:
+              for (int i = this.getOrder(); i == this.getOrder(); this.inc()) {}
+              break;
+          }
+        }
+      }
+    }
+
   }
 
   public static class Note {

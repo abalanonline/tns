@@ -1,27 +1,22 @@
 package ab;
 
 import javax.sound.midi.InvalidMidiDataException;
-import javax.sound.midi.MetaEventListener;
 import javax.sound.midi.MetaMessage;
 import javax.sound.midi.MidiDevice;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
-import javax.sound.midi.Receiver;
 import javax.sound.midi.Sequence;
 import javax.sound.midi.Sequencer;
-import javax.sound.midi.ShortMessage;
 import javax.sound.midi.Soundbank;
 import javax.sound.midi.Synthesizer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.time.Duration;
-import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class App {
 
@@ -37,7 +32,7 @@ public class App {
       Sequencer sequencer = MidiSystem.getSequencer(false);
       sequencer.getTransmitter().setReceiver(synthesizer.getReceiver());
       sequencer.addMetaEventListener(meta -> {
-        if (meta.getType() == 5) System.out.println(new String(meta.getData()));
+        if (meta.getType() == 1) System.out.println(new String(meta.getData()));
       });
 
       sequencer.open();
@@ -62,7 +57,7 @@ public class App {
     try {
       MidiDevice midiDevice = MidiSystem.getMidiDevice(MidiSystem.getMidiDeviceInfo()[0]);
       midiDevice.open();
-//      sound.setMidiReceiver(midiDevice.getReceiver());
+      sound.setMidiReceiver(midiDevice.getReceiver());
 
       byte[] pcm8 = mod.bytes.array();
       byte[] pcm16 = new byte[pcm8.length * 2];
@@ -84,59 +79,23 @@ public class App {
     } catch (MidiUnavailableException | InvalidMidiDataException | IOException ignore) {
     }
 
-    int bpmSpeed = 6;
-    int bpmTempo = 125;
-
     sound.putWav(sound.getWav());
-    Instant now = Instant.now();
-    int[] chSample = new int[0x20];
-    int[] chNote = new int[0x20];
-    for (AmigaMod.Sequencer sequencer = mod.newSequencer(); sequencer.getLoop() == 0; sequencer.inc()) {
-      try {
-        System.out.print(String.format("\r  %02d/%02d", sequencer.getOrder(), sequencer.getRow()));
-        AmigaMod.Note[] notes = sequencer.getNotes();
-        for (int c = 0; c < 4; c++) {
-          AmigaMod.Note note = notes[c];
-          System.out.print(" | " + note);
-          if (note.isNoteOn()) {
-            sound.noteOffOn(c, chSample[c], chNote[c], false);
-            chSample[c] = note.getSample();
-            chNote[c] = note.getMidiNote();
-            sound.noteOffOn(c, chSample[c], chNote[c], true);
-          }
-          switch (note.getFxCommand()) {
-            case 0xF:
-              int d = note.getFxData();
-              if (d == 0) break;
-              if (d < 0x20) {
-                bpmSpeed = d;
-              } else {
-                bpmTempo = d;
-              }
-              break;
+    AtomicLong milliseconds = new AtomicLong(300);
+    mod.getSequencer(midiMessage -> {
+      if (midiMessage instanceof MetaMessage) {
+        MetaMessage message = (MetaMessage) midiMessage;
+        if (message.getType() == 0x51) {
+          milliseconds.set(new BigInteger(message.getData()).longValue() / 4000);
+        }
+        if (message.getType() == 1) {
+          System.out.println(new String(message.getData()));
+          try {
+            Thread.sleep(milliseconds.get());
+          } catch (InterruptedException ignore) {
           }
         }
-        System.out.println();
-        sound.putWav(sound.getWav());
-        now = now.plusNanos(2_500_000_000L * bpmSpeed / bpmTempo);
-        Duration duration = Duration.between(Instant.now(), now);
-        if (duration.isNegative()) {
-          now = Instant.now();
-          continue;
-        }
-        Thread.sleep(duration.toMillis());
-        for (int c = 0; c < 4; c++) {
-          AmigaMod.Note note = notes[c];
-          switch (note.getFxCommand()) {
-            case 0xD:
-              for (int i = sequencer.getOrder(); i == sequencer.getOrder(); sequencer.inc()) {}
-              break;
-          }
-        }
-      } catch (InterruptedException e) {
-        break;
-      }
-    }
+      } else sound.midiReceiver.send(midiMessage, -1);
+    }).start();
   }
 
 }
