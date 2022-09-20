@@ -237,7 +237,7 @@ public class AmigaMod {
         int instrument = midiInstrumentMap[sample];
         if (instrument == 0) return;
         if (instrument < 0) {
-          instrument = -instrument;
+          key = -instrument;
           channel = 9;
         } else {
           sendMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument - 1, 0, -1);
