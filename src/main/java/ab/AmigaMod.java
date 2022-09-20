@@ -236,7 +236,12 @@ public class AmigaMod {
       if (sample != 0) {
         int instrument = midiInstrumentMap[sample];
         if (instrument == 0) return;
-        sendMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument - 1, 0, -1);
+        if (instrument < 0) {
+          instrument = -instrument;
+          channel = 9;
+        } else {
+          sendMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument - 1, 0, -1);
+        }
       }
       sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, 0x60, -1);
     }

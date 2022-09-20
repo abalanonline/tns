@@ -12,9 +12,10 @@ import javax.sound.midi.Synthesizer;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class App {
+public class PlayMod {
 
   public static void playAmigaMod(String modFile, boolean useSunSequencer, boolean useSunSynthesizer) {
     TyphoonSound sound = new TyphoonSound();
@@ -107,9 +108,16 @@ public class App {
   }
 
   public static void main( String[] args ) {
-//    playAmigaMod("test.mod", true, true);
-    playAmigaMod("test.mod", false, false);
-//    playAmigaModMidi("test.mod", new int[]{0, 25});
+    switch (args.length) {
+      case 1:
+        playAmigaMod(args[0], true, true);
+        break;
+      case 2:
+        int[] midiInstrumentMap = Arrays.stream(args[1].split(",")).mapToInt(Integer::valueOf).toArray();
+        playAmigaModMidi(args[0], midiInstrumentMap);
+        break;
+      default: throw new IllegalStateException();
+    }
   }
 
 }
