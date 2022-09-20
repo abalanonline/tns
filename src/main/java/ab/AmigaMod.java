@@ -46,6 +46,7 @@ public class AmigaMod {
   public final int[] samples = new int[samplesSize];
   public final int orderPos;
   public final int patternPos;
+  public final int[] midiInstrumentMap = new int[samplesSize];
 
   private static byte[] readAllBytes(InputStream stream) {
     try (stream) {
@@ -55,8 +56,12 @@ public class AmigaMod {
     }
   }
 
-  public AmigaMod(byte[] content) {
-    bytes = ByteBuffer.wrap(content);
+  public AmigaMod(InputStream stream) {
+    this(stream, null);
+  }
+
+  public AmigaMod(InputStream stream, int[] midiInstrumentMap) {
+    bytes = ByteBuffer.wrap(readAllBytes(stream));
     if (bytes.getInt(0x438) != 0x4D2E4B2E) {
       samplesSize = 0x10;
       throw new IllegalStateException("mod file error");
@@ -76,10 +81,13 @@ public class AmigaMod {
       samples[i] = sampleStart;
       sampleStart += i == 0 ? patternPos + patternSize * 0x400 : getSampleSize(i);
     }
-  }
-
-  public AmigaMod(InputStream stream) {
-    this(readAllBytes(stream));
+    for (int i = 0; i < this.midiInstrumentMap.length; i++) {
+      this.midiInstrumentMap[i] = i + 1;
+    }
+    if (midiInstrumentMap != null) {
+      System.arraycopy(midiInstrumentMap, 0, this.midiInstrumentMap, 1,
+          Math.min(midiInstrumentMap.length, this.midiInstrumentMap.length - 1));
+    }
   }
 
   public int getSampleSize(int sample) {
@@ -226,7 +234,9 @@ public class AmigaMod {
 
     private void noteOffOn(int channel, int sample, int key, boolean on) {
       if (sample != 0) {
-        sendMessage(ShortMessage.PROGRAM_CHANGE, channel, sample, 0, -1);
+        int instrument = midiInstrumentMap[sample];
+        if (instrument == 0) return;
+        sendMessage(ShortMessage.PROGRAM_CHANGE, channel, instrument - 1, 0, -1);
       }
       sendMessage(on ? ShortMessage.NOTE_ON : ShortMessage.NOTE_OFF, channel, key, 0x60, -1);
     }

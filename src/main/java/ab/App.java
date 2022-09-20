@@ -33,6 +33,7 @@ public class App {
         synthesizer.loadAllInstruments(soundbank);
         midiReceiver = synthesizer.getReceiver();
       } else {
+        // TNS synthesizer
         sound.loadAllInstruments(mod.toSoundFont());
         midiReceiver = sound;
       }
@@ -77,9 +78,38 @@ public class App {
     }
   }
 
+  public static void playAmigaModMidi(String modFile, int[] midiInstrumentMap) {
+    TyphoonSound sound = new TyphoonSound();
+    try {
+      AmigaMod mod = new AmigaMod(Files.newInputStream(Paths.get(modFile)), midiInstrumentMap);
+      Sequence sequence = MidiSystem.getSequence(mod.toMidi());
+
+      MidiDevice midiDevice = MidiSystem.getMidiDevice(MidiSystem.getMidiDeviceInfo()[0]);
+      midiDevice.open();
+      Receiver midiReceiver = midiDevice.getReceiver();
+
+      MetaEventListener metaEventListener = metaMessage -> {
+        if (metaMessage.getType() == 1) {
+          System.out.println(new String(metaMessage.getData()));
+        }
+      };
+
+      Sequencer sequencer = MidiSystem.getSequencer(false);
+      sequencer.getTransmitter().setReceiver(midiReceiver);
+      sequencer.addMetaEventListener(metaEventListener);
+
+      sequencer.open();
+      sequencer.setSequence(sequence);
+      sequencer.start();
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
   public static void main( String[] args ) {
 //    playAmigaMod("test.mod", true, true);
     playAmigaMod("test.mod", false, false);
+//    playAmigaModMidi("test.mod", new int[]{0, 25});
   }
 
 }
