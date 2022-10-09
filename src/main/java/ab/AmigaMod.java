@@ -159,15 +159,15 @@ public class AmigaMod {
     return new ByteArrayInputStream(toMidiBytes());
   }
 
-  public TyphoonSound.Font toSoundFont() {
+  public TnsSound.Font toSoundFont() {
     byte[] pcm8 = this.bytes.array();
     byte[] pcm16 = new byte[pcm8.length * 2];
     for (int i = 0, i1 = 1; i < pcm8.length; i++, i1 += 2) {
       pcm16[i1] = pcm8[i];
     }
 
-    TyphoonSound.Font soundFont = new TyphoonSound.Font(this.samplesSize, pcm16, 8363, this.getSongName());
-    TyphoonSound.Instrument[] ins = soundFont.getInstruments();
+    TnsSound.Font soundFont = new TnsSound.Font(this.samplesSize, pcm16, 8363, this.getSongName());
+    TnsSound.Instrument[] ins = soundFont.getInstruments();
     for (int i = 0; i < ins.length; i++) {
       ins[i].setName(this.getSampleName(i));
       ins[i].setSampe(this.getSampleStart(i), this.getSampleSize(i));

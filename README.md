@@ -1,2 +1,2 @@
-# tss
-Typhoon Sound System
+# tns
+TNS Sound System

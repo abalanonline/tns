@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PlayMod {
 
   public static void playAmigaMod(String modFile, boolean useSunSequencer, boolean useSunSynthesizer) {
-    TyphoonSound sound = new TyphoonSound();
+    TnsSound sound = new TnsSound();
     try {
       AmigaMod mod = new AmigaMod(Files.newInputStream(Paths.get(modFile)));
       Sequence sequence = MidiSystem.getSequence(mod.toMidi());
@@ -80,7 +80,7 @@ public class PlayMod {
   }
 
   public static void playAmigaModMidi(String modFile, int[] midiInstrumentMap) {
-    TyphoonSound sound = new TyphoonSound();
+    TnsSound sound = new TnsSound();
     try {
       AmigaMod mod = new AmigaMod(Files.newInputStream(Paths.get(modFile)), midiInstrumentMap);
       Sequence sequence = MidiSystem.getSequence(mod.toMidi());

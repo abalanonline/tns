@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-public class TyphoonSound implements AutoCloseable, Receiver {
+public class TnsSound implements AutoCloseable, Receiver {
 
   public static final int C4_MIDI = 60;
   public static final AudioFormat AUDIO_CD = new AudioFormat(44_100, 16, 2, true, false);
@@ -57,7 +57,7 @@ public class TyphoonSound implements AutoCloseable, Receiver {
    * @param audioFormat the desired audio format
    * @param latencyMs the latency in ms, must be longer than maximum estimated time between sound.putWav()
    */
-  public TyphoonSound(AudioFormat audioFormat, int latencyMs) {
+  public TnsSound(AudioFormat audioFormat, int latencyMs) {
     System.out.println("    ____                                ");
     System.out.println("     /        __  /__   __   __   __    ");
     System.out.println("    /  /__/ /__/ /  / /__/ /__/ /  /    ");
@@ -86,11 +86,11 @@ public class TyphoonSound implements AutoCloseable, Receiver {
     line.start();
   }
 
-  public TyphoonSound(AudioFormat audioFormat) {
+  public TnsSound(AudioFormat audioFormat) {
     this(audioFormat, 0);
   }
 
-  public TyphoonSound() {
+  public TnsSound() {
     this(AUDIO_CD);
   }
 
@@ -354,7 +354,7 @@ public class TyphoonSound implements AutoCloseable, Receiver {
       return list("RIFF", "sfbk",
           list("LIST", "INFO",
               chunk("ifil", new byte[]{2, 0, 1, 0}), // v 2.01
-              chunk("isng", paddedStr("Typhoon Sound System", -1)),
+              chunk("isng", paddedStr("TNS Sound System", -1)),
               chunk("INAM", paddedStr(name, -1))),
           list("LIST", "sdta",
               chunk("smpl", pcm)),
