@@ -1,6 +1,5 @@
 package ab;
 
-import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MidiDevice;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
@@ -8,10 +7,9 @@ import javax.sound.midi.Receiver;
 import javax.sound.midi.Sequencer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
-import java.util.stream.IntStream;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Bossanover {
 
@@ -66,46 +64,48 @@ public class Bossanover {
 
   public static Receiver getTheBestMidiReceiver() {
     MidiDevice.Info[] devices = MidiSystem.getMidiDeviceInfo();
-    return IntStream.rangeClosed(1, devices.length)
-        .mapToObj(device -> devices[devices.length - device]).map(info -> {
-          try {
-            return MidiSystem.getMidiDevice(info);
-          } catch (MidiUnavailableException e) {
-            return null;
-          }
-        }).filter(Objects::nonNull).map(midiDevice -> {
-          try {
-            Receiver receiver = midiDevice.getReceiver();
-            midiDevice.open();
-            return receiver;
-          } catch (MidiUnavailableException e) {
-            return null;
-          }
-        }).filter(Objects::nonNull).findFirst().get();
+    for (int i = devices.length - 1; i >= 0; i--) {
+      try {
+        MidiDevice midiDevice = MidiSystem.getMidiDevice(devices[i]);
+        Receiver receiver = midiDevice.getReceiver();
+        midiDevice.open();
+        return receiver;
+      } catch (MidiUnavailableException e) {
+      }
+    }
+    return null;
   }
 
   public int[] bossanoving() {
     // TODO: 2022-10-16 make sure it's able to produce all of the Nyango Star patterns https://youtu.be/OnkTUKtxRic
-    return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
+    //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
+    int[] bossanova = new int[16];
+    Random random = ThreadLocalRandom.current();
+    bossanova[random.nextInt(16)] = 0xAAAA;
+    bossanova[random.nextInt(16)] = 0x8888;
+    bossanova[random.nextInt(16)] = 0x0808;
+    return bossanova;
   }
 
   // kick, snare, closed hh, open hh, clap/rim, ride, hi bell, low bell
-  public static void main( String[] args ) throws IOException, MidiUnavailableException, InvalidMidiDataException {
+  public static void main( String[] args ) throws Exception {
     Sequencer sequencer = MidiSystem.getSequencer(false);
     sequencer.getTransmitter().setReceiver(getTheBestMidiReceiver());
     sequencer.open();
-    sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
     System.out.println("TNS Bossanover. Enter to bossanove, q to quit.");
     for (int c = System.in.read(); (c | 0x20) != 'q'; c = System.in.read()) {
       switch (c) {
         case '\n':
           int[] bossanova = new Bossanover().bossanoving();
+          sequencer.setLoopCount(0);
+          while (sequencer.isRunning()) Thread.sleep(10);
           for (int pattern = 0; pattern < bossanova.length; pattern++) {
             if (bossanova[pattern] != 0) {
               System.out.println(String.format("%-5s%s", KEY_NAMES[pattern], patternToString(bossanova[pattern])));
             }
           }
           sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(midi707(bossanova))));
+          sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
           sequencer.start();
           break;
         default:
