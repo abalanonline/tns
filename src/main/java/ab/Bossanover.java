@@ -24,6 +24,7 @@ import javax.sound.midi.Sequencer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -40,6 +41,8 @@ public class Bossanover {
   };
 
   public static byte[] midi707full(int... patterns) {
+    if (Arrays.stream(patterns).anyMatch(p -> (p | 0xFFFF) != 0xFFFF)) throw new IllegalStateException();
+
     ByteArrayOutputStream stream = new ByteArrayOutputStream();
     stream.write(0x00);
     for (int step = 0; step < 16; step++) {
@@ -104,9 +107,10 @@ public class Bossanover {
     //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
     int[] bossanova = new int[16];
     Random random = ThreadLocalRandom.current();
-    bossanova[random.nextInt(16)] = 0xAAAA;
-    bossanova[random.nextInt(16)] = 0x8888;
-    bossanova[random.nextInt(16)] = 0x0808;
+    ExponentialFunction ef = new ExponentialFunction(Integer.MIN_VALUE, Integer.MAX_VALUE, 1, 0x100, 0xFFFF);
+    bossanova[0] = new LogDrum(ef.apply(random.nextInt()), 0).pattern;
+    bossanova[2] = new LogDrum(ef.apply(random.nextInt()), 0).pattern;
+    bossanova[11] = new LogDrum(ef.apply(random.nextInt()), 0).pattern;
     return bossanova;
   }
 
