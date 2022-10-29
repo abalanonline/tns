@@ -1,3 +1,19 @@
+/*
+ * Copyright 2022 Aleksei Balan
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ab;
 
 import javax.sound.midi.MidiDevice;
@@ -23,7 +39,7 @@ public class Bossanover {
       71, 72
   };
 
-  public static byte[] midi707(int... patterns) {
+  public static byte[] midi707full(int... patterns) {
     ByteArrayOutputStream stream = new ByteArrayOutputStream();
     stream.write(0x00);
     for (int step = 0; step < 16; step++) {
@@ -51,6 +67,14 @@ public class Bossanover {
     result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
     //try { Files.write(Paths.get("test.mid"), result.array()); } catch (IOException e) {}
     return result.array();
+  };
+
+  public static byte[] midi707short(int... patterns) {
+    int fullPattern[] = new int[KEY_NUMBERS.length];
+    for (int i = 1; i < patterns.length; i += 2) {
+      fullPattern[patterns[i - 1]] = patterns[i];
+    }
+    return midi707full(fullPattern);
   }
 
   private static String patternToString(int pattern) {
@@ -77,7 +101,6 @@ public class Bossanover {
   }
 
   public int[] bossanoving() {
-    // TODO: 2022-10-16 make sure it's able to produce all of the Nyango Star patterns https://youtu.be/OnkTUKtxRic
     //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
     int[] bossanova = new int[16];
     Random random = ThreadLocalRandom.current();
@@ -104,7 +127,7 @@ public class Bossanover {
               System.out.println(String.format("%-5s%s", KEY_NAMES[pattern], patternToString(bossanova[pattern])));
             }
           }
-          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(midi707(bossanova))));
+          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(midi707full(bossanova))));
           sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
           sequencer.start();
           break;
