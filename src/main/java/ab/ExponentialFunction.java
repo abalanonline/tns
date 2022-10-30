@@ -16,6 +16,7 @@
 
 package ab;
 
+import java.util.Random;
 import java.util.function.UnaryOperator;
 
 /**
@@ -32,16 +33,27 @@ public class ExponentialFunction implements UnaryOperator<Double> {
     bConstant = Math.log(r) / d;
     aConstant = (y3 - y1) / (Math.pow(r, x3 / d) - Math.pow(r, x1 / d));
     cConstant = y2 - aConstant * Math.exp(bConstant * (x3 + x1) / 2);
+    if (Double.isInfinite(aConstant) || Double.isInfinite(cConstant)) throw new ArithmeticException();
   }
 
   @Override
   public Double apply(Double d) {
-    double v = aConstant * Math.exp(bConstant * d) + cConstant;
-    return v;
+    return aConstant * Math.exp(bConstant * d) + cConstant;
   }
 
   public int apply(int i) {
-    long v = Math.round(this.apply(Double.valueOf(i)));
-    return (int) v;
+    return (int) Math.round(this.apply(Double.valueOf(i)));
+  }
+
+  public static class RandomInt {
+    ExponentialFunction exponentialFunction;
+    Random random;
+    public RandomInt(Random random, double y1, double y2, double y3) {
+      this.exponentialFunction = new ExponentialFunction(Integer.MIN_VALUE, Integer.MAX_VALUE, y1, y2, y3);
+      this.random = random;
+    }
+    public int nextInt() {
+      return (int) Math.round(exponentialFunction.apply((double) random.nextInt()));
+    }
   }
 }

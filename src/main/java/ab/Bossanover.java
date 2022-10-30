@@ -25,8 +25,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.IntStream;
 
 public class Bossanover {
 
@@ -38,6 +40,17 @@ public class Bossanover {
       35, 36, 38, 40, 41, 45, 48, 37,
       56, 39, 54, 42, 44, 46, 49, 51,
       71, 72
+  };
+  // loud and rare - put any numbers that make sense - decibels, percents, ratings, etc
+  public static final int[] DRUM_LOUD = {
+      2, 2, 3, 3, 1, 1, 1, 2,
+      1, 1, 1, 0, 0, 1, 3, 2,
+      2, 2
+  };
+  public static final int[] DRUM_RARE = {
+      -1, 0, -1, 0, 1, 1, 1, 2,
+      3, 3, 3, -1, 1, 0, 2, 2,
+      3, 3
   };
 
   public static byte[] midi707full(int... patterns) {
@@ -103,14 +116,64 @@ public class Bossanover {
     return null;
   }
 
+  ExponentialFunction.RandomInt rPattern;
+  ExponentialFunction.RandomInt rVerbosity;
+  ExponentialFunction.RandomInt rInstrument;
+  int[] aInstrument;
+  int[] aVolume;
+  public static final int INT_VOLUMES = 5;
+  public Bossanover() {
+    Random random = ThreadLocalRandom.current();
+    rPattern = new ExponentialFunction.RandomInt(random, 1, 0x40, 0xFFFF);
+    rVerbosity = new ExponentialFunction.RandomInt(random, 0, 1.2, 3);
+    rInstrument = new ExponentialFunction.RandomInt(random, 0, 4, KEY_NUMBERS.length - 1);
+    int[] loud = IntStream.range(0, KEY_NUMBERS.length)
+        .boxed().sorted(Comparator.comparingInt(i -> DRUM_LOUD[i])).mapToInt(i -> i).toArray();
+    aVolume = new int[loud.length];
+    for (int i = 0; i < loud.length; i++) {
+      aVolume[loud[i]] = i * INT_VOLUMES / loud.length;
+    }
+    aInstrument = IntStream.range(0, KEY_NUMBERS.length)
+        .boxed().sorted(Comparator.comparingInt(i -> DRUM_RARE[i])).mapToInt(i -> i).toArray();
+  }
+
+  public int patternVolume(int pattern) {
+    int v = 0;
+    for (int b = 1; b < 0x10000; b <<= 1) {
+      v += (pattern & b) == 0 ? 0 : 1;
+    }
+    return v;
+  }
+
+  public int randomPattern() {
+    int result = 0;
+    for (int i = 0; i < 3; i++) {
+      int v = rVerbosity.nextInt(); // 10000, 100, 10, 4 // 16, 8, 4, 2 // 4, 3, 2, 1 // 0, 1, 2, 3
+      int p = rPattern.nextInt() & ((1 << (1 << 4 - v)) - 1);
+      result = new LogDrum(p, v).linear;
+      if (result != 0) break; // two retries if empty pattern is generated
+    }
+    return result;
+  }
+
+  public int randomPattern(int instrument) {
+    int[] patterns = IntStream.range(0, INT_VOLUMES).mapToObj(a -> randomPattern())
+        .sorted(Comparator.comparingInt(this::patternVolume)).mapToInt(p -> p).toArray();
+    int i = INT_VOLUMES - 1 - aVolume[instrument];
+    return patterns[i];
+  }
+
+  public int randomInstrument() {
+    return aInstrument[rInstrument.nextInt()];
+  }
+
   public int[] bossanoving() {
     //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
-    int[] bossanova = new int[16];
-    Random random = ThreadLocalRandom.current();
-    ExponentialFunction ef = new ExponentialFunction(Integer.MIN_VALUE, Integer.MAX_VALUE, 1, 0x100, 0xFFFF);
-    bossanova[0] = new LogDrum(ef.apply(random.nextInt()), 0).pattern;
-    bossanova[2] = new LogDrum(ef.apply(random.nextInt()), 0).pattern;
-    bossanova[11] = new LogDrum(ef.apply(random.nextInt()), 0).pattern;
+    int[] bossanova = new int[KEY_NUMBERS.length];
+    for (int i = 0; i < 4; i++) {
+      int instrument = randomInstrument();
+      bossanova[instrument] = randomPattern(instrument);
+    }
     return bossanova;
   }
 
@@ -119,11 +182,12 @@ public class Bossanover {
     Sequencer sequencer = MidiSystem.getSequencer(false);
     sequencer.getTransmitter().setReceiver(getTheBestMidiReceiver());
     sequencer.open();
+    Bossanover bossanover = new Bossanover();
     System.out.println("TNS Bossanover. Enter to bossanove, q to quit.");
     for (int c = System.in.read(); (c | 0x20) != 'q'; c = System.in.read()) {
       switch (c) {
         case '\n':
-          int[] bossanova = new Bossanover().bossanoving();
+          int[] bossanova = bossanover.bossanoving();
           sequencer.setLoopCount(0);
           while (sequencer.isRunning()) Thread.sleep(10);
           for (int pattern = 0; pattern < bossanova.length; pattern++) {
