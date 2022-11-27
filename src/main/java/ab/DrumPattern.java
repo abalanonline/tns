@@ -22,8 +22,8 @@ import java.util.Arrays;
 public class DrumPattern implements MelodicPattern {
 
   public static final String[] KEY_NAMES = {
-      "BD1", "BD2", "SD1", "SD2", "L-T", "M-T", "H-T", "RIM",
-      "COW", "HCP", "TAMB", "CH", "CH", "OH", "CRASH", "RIDE",
+      "BD1", "BD2", "SD1", "SD2", "L-T", "M-T", "H-T", "RIM", // TR-707
+      "COW", "HCP", "TAMB", "CH", "CH", "OH", "CRASH", "RIDE", // TR-707
       "SHORT WHIS", "LONG WHIS"}; // TR-727 essentials
   public static final int[] KEY_NUMBERS = {
       35, 36, 38, 40, 41, 45, 48, 37,

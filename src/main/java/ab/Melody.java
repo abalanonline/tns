@@ -66,7 +66,7 @@ public class Melody {
     ByteBuffer result = ByteBuffer.wrap(new byte[stream.size() + 0x16]);
     result.putInt(0x4D546864).putInt(6).putShort((short) 1).putShort((short) 1).putShort((short) 0xC0);
     result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
-    try { Files.write(Paths.get("target/test_m.mid"), result.array()); } catch (IOException e) {}
+    try { Files.write(Paths.get("target/test.mid"), result.array()); } catch (IOException e) {}
     return result.array();
   }
 }

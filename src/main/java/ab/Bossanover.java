@@ -131,6 +131,7 @@ public class Bossanover {
       switch (c) {
         case '\n':
           MelodicPattern bossanova = new DrumPattern(bossanover.bossanoving());
+          bossanova = new ProgressionPattern();
           sequencer.setLoopCount(0);
           while (sequencer.isRunning()) Thread.sleep(10);
           System.out.println(bossanova);
