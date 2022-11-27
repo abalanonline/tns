@@ -24,10 +24,10 @@ import javax.sound.midi.Sequencer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -38,15 +38,6 @@ import java.util.stream.IntStream;
  */
 public class Bossanover {
 
-  public static final String[] KEY_NAMES = {
-      "BD1", "BD2", "SD1", "SD2", "L-T", "M-T", "H-T", "RIM",
-      "COW", "HCP", "TAMB", "CH", "CH", "OH", "CRASH", "RIDE",
-      "SHORT WHIS", "LONG WHIS"}; // TR-727 essentials
-  public static final int[] KEY_NUMBERS = {
-      35, 36, 38, 40, 41, 45, 48, 37,
-      56, 39, 54, 42, 44, 46, 49, 51,
-      71, 72
-  };
   // loud and rare - put any numbers that make sense - decibels, percents, ratings, etc
   public static final int[] DRUM_LOUD = {
       2, 2, 3, 3, 1, 1, 1, 2,
@@ -60,26 +51,14 @@ public class Bossanover {
   };
 
   public static byte[] midi707full(int... patterns) {
-    if (Arrays.stream(patterns).anyMatch(p -> (p | 0xFFFF) != 0xFFFF)) throw new IllegalStateException();
-
+    MelodicPattern drumPattern = new DrumPattern(patterns);
     ByteArrayOutputStream stream = new ByteArrayOutputStream();
-    stream.write(0x00);
-    for (int step = 0; step < 16; step++) {
-      for (int on = 1; on >= 0; on--) {
-        for (int pattern = 0; pattern < patterns.length; pattern++) {
-          if ((patterns[pattern] & 0x8000 >> step) != 0) {
-            stream.write(on > 0 ? 0x99 : 0x89);
-            stream.write(KEY_NUMBERS[pattern]);
-            stream.write(TnsSound.MIDI_DEFAULT_VELOCITY);
-            stream.write(0x00);
-          }
-        }
-        stream.write(0xFF);
-        stream.write(0x7F);
-        stream.write(0x00);
-        stream.write(on > 0 ? 0x2E : 0x02);
-      }
+    try {
+      stream.write(drumPattern.getMidi());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
+    stream.write(0x00);
     stream.write(0xFF);
     stream.write(0x2F);
     stream.write(0x00);
@@ -92,20 +71,11 @@ public class Bossanover {
   }
 
   public static byte[] midi707short(int... patterns) {
-    int[] fullPattern = new int[KEY_NUMBERS.length];
+    int[] fullPattern = new int[DrumPattern.DRUM_NUMBER];
     for (int i = 1; i < patterns.length; i += 2) {
       fullPattern[patterns[i - 1]] = patterns[i];
     }
     return midi707full(fullPattern);
-  }
-
-  private static String patternToString(int pattern) {
-    StringBuilder stringBuilder = new StringBuilder();
-    for (int i = 0, mask = 0x8000; mask != 0; i++, mask >>= 1) {
-      if (i % 4 == 0) stringBuilder.append(' ');
-      stringBuilder.append((pattern & mask) == 0 ? '-' : '#');
-    }
-    return stringBuilder.toString();
   }
 
   public static Receiver getTheBestMidiReceiver() {
@@ -132,14 +102,14 @@ public class Bossanover {
     Random random = ThreadLocalRandom.current();
     rPattern = new ExponentialFunction.RandomInt(random, 1, 0x40, 0xFFFF);
     rVerbosity = new ExponentialFunction.RandomInt(random, 0, 1.2, 3);
-    rInstrument = new ExponentialFunction.RandomInt(random, 0, 4, KEY_NUMBERS.length - 1);
-    int[] loud = IntStream.range(0, KEY_NUMBERS.length)
+    rInstrument = new ExponentialFunction.RandomInt(random, 0, 4, DrumPattern.DRUM_NUMBER - 1);
+    int[] loud = IntStream.range(0, DrumPattern.DRUM_NUMBER)
         .boxed().sorted(Comparator.comparingInt(i -> DRUM_LOUD[i])).mapToInt(i -> i).toArray();
     aVolume = new int[loud.length];
     for (int i = 0; i < loud.length; i++) {
       aVolume[loud[i]] = i * INT_VOLUMES / loud.length;
     }
-    aInstrument = IntStream.range(0, KEY_NUMBERS.length)
+    aInstrument = IntStream.range(0, DrumPattern.DRUM_NUMBER)
         .boxed().sorted(Comparator.comparingInt(i -> DRUM_RARE[i])).mapToInt(i -> i).toArray();
   }
 
@@ -176,7 +146,7 @@ public class Bossanover {
 
   public int[] bossanoving() {
     //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
-    int[] bossanova = new int[KEY_NUMBERS.length];
+    int[] bossanova = new int[DrumPattern.DRUM_NUMBER];
     for (int i = 0; i < 4; i++) {
       int instrument = randomInstrument();
       bossanova[instrument] = randomPattern(instrument);
@@ -195,13 +165,10 @@ public class Bossanover {
       switch (c) {
         case '\n':
           int[] bossanova = bossanover.bossanoving();
+          MelodicPattern drumPattern = new DrumPattern(bossanova);
           sequencer.setLoopCount(0);
           while (sequencer.isRunning()) Thread.sleep(10);
-          for (int pattern = 0; pattern < bossanova.length; pattern++) {
-            if (bossanova[pattern] != 0) {
-              System.out.println(String.format("%-5s%s", KEY_NAMES[pattern], patternToString(bossanova[pattern])));
-            }
-          }
+          System.out.println(drumPattern);
           sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(midi707full(bossanova))));
           sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
           sequencer.start();
