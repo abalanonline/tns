@@ -25,6 +25,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Melody {
   public List<List<MelodicPattern>> patterns;
@@ -42,17 +43,33 @@ public class Melody {
     return melody;
   }
 
-  public void addDrums(int index, MelodicPattern melodicPattern) {
-    patterns.get(0).add(index, melodicPattern);
+  private void addPattern(int id, MelodicPattern melodicPattern, int repetitions) {
+    List<MelodicPattern> melodicPatterns = patterns.get(id);
+    for (int i = 0; i < repetitions; i++) {
+      melodicPatterns.add(melodicPattern);
+    }
   }
 
-  public void addPiano(int index, MelodicPattern melodicPattern) {
-    patterns.get(1).add(index, melodicPattern);
+  public void addDrums(MelodicPattern melodicPattern) {
+    addPattern(0, melodicPattern, 1);
+  }
+
+  public void addDrums(MelodicPattern melodicPattern, int repetitions) {
+    addPattern(0, melodicPattern, repetitions);
+  }
+
+  public void addPiano(MelodicPattern melodicPattern) {
+    addPattern(1, melodicPattern, 1);
+  }
+
+  public void addPiano(MelodicPattern melodicPattern, int repetitions) {
+    addPattern(1, melodicPattern, repetitions);
   }
 
   public byte[] toMidi() {
     List<byte[]> midiTracks = patterns.stream().map(instrumentPatterns -> {
       ByteArrayOutputStream stream = new ByteArrayOutputStream();
+      stream.write(0x00);
       instrumentPatterns.forEach(melodicPattern -> {
         try {
           stream.write(melodicPattern.getMidi());
@@ -60,7 +77,6 @@ public class Melody {
           throw new UncheckedIOException(e);
         }
       });
-      stream.write(0x00);
       stream.write(0xFF);
       stream.write(0x2F);
       stream.write(0x00);
@@ -73,5 +89,11 @@ public class Melody {
     midiTracks.forEach(midiTrack -> result.putInt(0x4D54726B).putInt(midiTrack.length).put(midiTrack));
     try { Files.write(Paths.get("target/test.mid"), result.array()); } catch (IOException e) {}
     return result.array();
+  }
+
+  @Override
+  public String toString() {
+    return patterns.stream().map(list -> list.get(list.size() > 2 ? 2 : 0).toString())
+        .collect(Collectors.joining("\n"));
   }
 }

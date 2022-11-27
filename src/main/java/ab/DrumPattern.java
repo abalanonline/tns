@@ -31,6 +31,7 @@ public class DrumPattern implements MelodicPattern {
       71, 72
   };
   public static final int DRUM_NUMBER = KEY_NUMBERS.length;
+  public static final DrumPattern EMPTY = new DrumPattern(new int[DRUM_NUMBER]);
 
   private int[] pattern;
 
@@ -55,16 +56,16 @@ public class DrumPattern implements MelodicPattern {
       for (int on = 1; on >= 0; on--) {
         for (int pattern = 0; pattern < patterns.length; pattern++) {
           if ((patterns[pattern] & 0x8000 >> step) != 0) {
-            stream.write(0x00);
             stream.write(on > 0 ? 0x99 : 0x89);
             stream.write(KEY_NUMBERS[pattern]);
             stream.write(TnsSound.MIDI_DEFAULT_VELOCITY);
+            stream.write(0x00);
           }
         }
-        stream.write(on > 0 ? 0x2E : 0x02);
         stream.write(0xFF);
         stream.write(0x7F);
         stream.write(0x00);
+        stream.write(on > 0 ? 0x2E : 0x02);
       }
     }
     return stream.toByteArray();
@@ -82,10 +83,9 @@ public class DrumPattern implements MelodicPattern {
   @Override
   public String toString() {
     StringBuilder stringBuilder = new StringBuilder();
-    int[] bossanova = this.pattern;
-    for (int pattern = 0; pattern < bossanova.length; pattern++) {
-      if (bossanova[pattern] != 0) {
-        stringBuilder.append(String.format("%-5s%s%n", KEY_NAMES[pattern], patternToString(bossanova[pattern])));
+    for (int i = 0; i < pattern.length; i++) {
+      if (pattern[i] != 0) {
+        stringBuilder.append(String.format("%-5s%s%n", KEY_NAMES[i], patternToString(pattern[i])));
       }
     }
     return stringBuilder.toString().trim();

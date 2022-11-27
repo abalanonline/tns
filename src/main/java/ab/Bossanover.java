@@ -112,14 +112,14 @@ public class Bossanover {
     return aInstrument[rInstrument.nextInt()];
   }
 
-  public MelodicPattern bossanoving() {
+  public MelodicPattern getDrums() {
     //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
-    int[] bossanova = new int[DrumPattern.DRUM_NUMBER];
+    int[] fullDrums = new int[DrumPattern.DRUM_NUMBER];
     for (int i = 0; i < 4; i++) {
       int instrument = randomInstrument();
-      bossanova[instrument] = randomPattern(instrument);
+      fullDrums[instrument] = randomPattern(instrument);
     }
-    return new DrumPattern(bossanova);
+    return new DrumPattern(fullDrums);
   }
 
   public MelodicPattern getSchwifty() {
@@ -141,6 +141,29 @@ public class Bossanover {
     return new ProgressionPattern(key, progression);
   }
 
+  public Melody bossanoving() {
+    //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
+    int nDrums = 4;
+    int[] shortDrums = new int[nDrums * 2];
+    for (int i = 0; i < nDrums; i++) {
+      int instrument = randomInstrument();
+      shortDrums[i * 2] = instrument;
+      shortDrums[i * 2 + 1] = randomPattern(instrument);
+    }
+    DrumPattern drumPattern = DrumPattern.newShort(shortDrums);
+    Melody melody = new Melody();
+    int[] tc = new int[]{2, 8, 4, 4, 4, 2}; // time code
+    melody.addDrums(drumPattern, tc[0] + tc[1]);
+    melody.addDrums(getDrums(), tc[2] + tc[3]);
+    melody.addDrums(drumPattern, tc[4] + tc[5]);
+    melody.addPiano(DrumPattern.EMPTY, tc[0]);
+    melody.addPiano(getSchwifty(), (tc[1] + tc[2]) / 4);
+    melody.addPiano(getSchwifty(), (tc[3] + tc[4]) / 4);
+    melody.addPiano(DrumPattern.EMPTY, tc[5]);
+
+    return melody;
+  }
+
   // kick, snare, closed hh, open hh, clap/rim, ride, hi bell, low bell
   public static void main( String[] args ) throws Exception {
     Sequencer sequencer = MidiSystem.getSequencer(false);
@@ -151,20 +174,12 @@ public class Bossanover {
     for (int c = System.in.read(); (c | 0x20) != 'q'; c = System.in.read()) {
       switch (c) {
         case '\n':
-          MelodicPattern bossanova = bossanover.bossanoving();
-          MelodicPattern barbiegirl = bossanover.getSchwifty();
-          Melody melody = new Melody();
-          melody.addDrums(0, bossanova);
-          melody.addDrums(1, bossanova);
-          melody.addDrums(2, bossanova);
-          melody.addDrums(3, bossanova);
-          melody.addPiano(0, barbiegirl);
+          Melody bossanova = bossanover.bossanoving();
           sequencer.setLoopCount(0);
           while (sequencer.isRunning()) Thread.sleep(10);
-          System.out.println(barbiegirl);
           System.out.println(bossanova);
-          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(melody.toMidi())));
-          sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
+          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(bossanova.toMidi())));
+          //sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
           sequencer.start();
           break;
         default:

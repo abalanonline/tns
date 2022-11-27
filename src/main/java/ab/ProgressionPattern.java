@@ -77,17 +77,17 @@ public class ProgressionPattern implements MelodicPattern {
         int p = pattern[step / 16];
         for (int i = 0; i < 12; i++) {
           if ((1 << i & p) != 0) {
-            stream.write(0x00);
             stream.write(step % 8 == 0 ? 0x90 : 0x80);
             stream.write(60 + i);
             stream.write(TnsSound.MIDI_DEFAULT_VELOCITY);
+            stream.write(0x00);
           }
         }
       }
-      stream.write(0x30); // delay
       stream.write(0xFF);
       stream.write(0x7F);
       stream.write(0x00);
+      stream.write(0x30); // delay
     }
     return stream.toByteArray();
   }
