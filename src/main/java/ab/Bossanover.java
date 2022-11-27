@@ -22,9 +22,11 @@ import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Receiver;
 import javax.sound.midi.Sequencer;
 import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -110,14 +112,33 @@ public class Bossanover {
     return aInstrument[rInstrument.nextInt()];
   }
 
-  public int[] bossanoving() {
+  public MelodicPattern bossanoving() {
     //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
     int[] bossanova = new int[DrumPattern.DRUM_NUMBER];
     for (int i = 0; i < 4; i++) {
       int instrument = randomInstrument();
       bossanova[instrument] = randomPattern(instrument);
     }
-    return bossanova;
+    return new DrumPattern(bossanova);
+  }
+
+  public MelodicPattern getSchwifty() {
+    Random random = ThreadLocalRandom.current();
+    ArrayList<Integer> progressionPool = new ArrayList<>();
+    IntStream.range(0, 6).forEach(i -> {
+      progressionPool.add(i);
+      progressionPool.add(i);
+    });
+    String key = String.valueOf((char) (random.nextInt(7) + 'A'));
+    String progression = IntStream.range(0, 4)
+        .mapToObj(i -> {
+          int id = random.nextInt(progressionPool.size());
+          String s = new ProgressionPattern.LatinNumeral(progressionPool.get(id) + 1).toString();
+          progressionPool.remove(id);
+          return random.nextInt(4) == 0 ? s.toLowerCase() : s.toUpperCase();
+        })
+        .collect(Collectors.joining("-"));
+    return new ProgressionPattern(key, progression);
   }
 
   // kick, snare, closed hh, open hh, clap/rim, ride, hi bell, low bell
@@ -130,13 +151,19 @@ public class Bossanover {
     for (int c = System.in.read(); (c | 0x20) != 'q'; c = System.in.read()) {
       switch (c) {
         case '\n':
-          MelodicPattern bossanova = new DrumPattern(bossanover.bossanoving());
-          bossanova = new ProgressionPattern();
+          MelodicPattern bossanova = bossanover.bossanoving();
+          MelodicPattern barbiegirl = bossanover.getSchwifty();
+          Melody melody = new Melody();
+          melody.addDrums(0, bossanova);
+          melody.addDrums(1, bossanova);
+          melody.addDrums(2, bossanova);
+          melody.addDrums(3, bossanova);
+          melody.addPiano(0, barbiegirl);
           sequencer.setLoopCount(0);
           while (sequencer.isRunning()) Thread.sleep(10);
+          System.out.println(barbiegirl);
           System.out.println(bossanova);
-          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(
-              Melody.onePattern(bossanova).toMidi())));
+          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(melody.toMidi())));
           sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
           sequencer.start();
           break;

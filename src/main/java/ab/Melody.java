@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Melody {
   public List<List<MelodicPattern>> patterns;
@@ -50,22 +51,26 @@ public class Melody {
   }
 
   public byte[] toMidi() {
-    ByteArrayOutputStream stream = new ByteArrayOutputStream();
-    patterns.get(0).forEach(melodicPattern -> {
-      try {
-        stream.write(melodicPattern.getMidi());
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    });
-    stream.write(0x00);
-    stream.write(0xFF);
-    stream.write(0x2F);
-    stream.write(0x00);
+    List<byte[]> midiTracks = patterns.stream().map(instrumentPatterns -> {
+      ByteArrayOutputStream stream = new ByteArrayOutputStream();
+      instrumentPatterns.forEach(melodicPattern -> {
+        try {
+          stream.write(melodicPattern.getMidi());
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      });
+      stream.write(0x00);
+      stream.write(0xFF);
+      stream.write(0x2F);
+      stream.write(0x00);
+      return stream.toByteArray();
+    }).collect(Collectors.toList());
 
-    ByteBuffer result = ByteBuffer.wrap(new byte[stream.size() + 0x16]);
-    result.putInt(0x4D546864).putInt(6).putShort((short) 1).putShort((short) 1).putShort((short) 0xC0);
-    result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
+    ByteBuffer result = ByteBuffer.wrap(new byte[
+        0x0E + 0x08 * midiTracks.size() + midiTracks.stream().mapToInt(b -> b.length).sum()]);
+    result.putInt(0x4D546864).putInt(6).putShort((short) 1).putShort((short) midiTracks.size()).putShort((short) 0xC0);
+    midiTracks.forEach(midiTrack -> result.putInt(0x4D54726B).putInt(midiTrack.length).put(midiTrack));
     try { Files.write(Paths.get("target/test.mid"), result.array()); } catch (IOException e) {}
     return result.array();
   }
