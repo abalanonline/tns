@@ -23,13 +23,19 @@ import javax.sound.midi.Receiver;
 import javax.sound.midi.Sequencer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 
+/**
+ * And over and over.
+ */
 public class Bossanover {
 
   public static final String[] KEY_NAMES = {
@@ -81,12 +87,12 @@ public class Bossanover {
     ByteBuffer result = ByteBuffer.wrap(new byte[stream.size() + 0x16]);
     result.putInt(0x4D546864).putInt(6).putShort((short) 1).putShort((short) 1).putShort((short) 0xC0);
     result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
-    //try { Files.write(Paths.get("test.mid"), result.array()); } catch (IOException e) {}
+    try { Files.write(Paths.get("target/test.mid"), result.array()); } catch (IOException e) {}
     return result.array();
-  };
+  }
 
   public static byte[] midi707short(int... patterns) {
-    int fullPattern[] = new int[KEY_NUMBERS.length];
+    int[] fullPattern = new int[KEY_NUMBERS.length];
     for (int i = 1; i < patterns.length; i += 2) {
       fullPattern[patterns[i - 1]] = patterns[i];
     }
@@ -150,6 +156,7 @@ public class Bossanover {
     for (int i = 0; i < 3; i++) {
       int v = rVerbosity.nextInt(); // 10000, 100, 10, 4 // 16, 8, 4, 2 // 4, 3, 2, 1 // 0, 1, 2, 3
       int p = rPattern.nextInt() & ((1 << (1 << 4 - v)) - 1);
+      if (v == 3) p = ((p - 1) & 1) + 1; // for v3 the only two patterns make sense 01 and 10
       result = new LogDrum(p, v).linear;
       if (result != 0) break; // two retries if empty pattern is generated
     }
