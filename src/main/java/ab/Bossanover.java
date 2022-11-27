@@ -141,7 +141,16 @@ public class Bossanover {
     return new ProgressionPattern(key, progression);
   }
 
+
+  public static final int[] PIANO_INSTRUMENT = new int[]{
+      1, 2, 3, 5, 6, 8,
+      25, 26, 27, 28, 29, 32,
+      33, 34, 35, 37, 38,
+      41, 42, 43,
+      57, 60,
+  };
   public Melody bossanoving() {
+    Random random = ThreadLocalRandom.current();
     //return new int[]{0x8888, 0, 0x0808, 0, 0, 0, 0, 0, 0, 0, 0, 0xAAAA};
     int nDrums = 4;
     int[] shortDrums = new int[nDrums * 2];
@@ -153,9 +162,12 @@ public class Bossanover {
     DrumPattern drumPattern = DrumPattern.newShort(shortDrums);
     Melody melody = new Melody();
     int[] tc = new int[]{2, 8, 4, 4, 4, 2}; // time code
+
+    melody.addMeta(new MidiMeta().tempo(random.nextInt(8) * 10 + 70)); // 70-140
     melody.addDrums(drumPattern, tc[0] + tc[1]);
     melody.addDrums(getDrums(), tc[2] + tc[3]);
     melody.addDrums(drumPattern, tc[4] + tc[5]);
+    melody.addPiano(new MidiMeta().instrument(PIANO_INSTRUMENT[random.nextInt(PIANO_INSTRUMENT.length)]));
     melody.addPiano(DrumPattern.EMPTY, tc[0]);
     melody.addPiano(getSchwifty(), (tc[1] + tc[2]) / 4);
     melody.addPiano(getSchwifty(), (tc[3] + tc[4]) / 4);

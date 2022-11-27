@@ -34,12 +34,12 @@ public class Melody {
     this.patterns = new ArrayList<>();
     patterns.add(new ArrayList<>());
     patterns.add(new ArrayList<>());
+    patterns.add(new ArrayList<>());
   }
 
   public static Melody onePattern(MelodicPattern melodicPattern) {
     Melody melody = new Melody();
-    melody.patterns.get(0).add(melodicPattern);
-    melody.patterns.remove(1);
+    melody.patterns.get(1).add(melodicPattern);
     return melody;
   }
 
@@ -50,24 +50,28 @@ public class Melody {
     }
   }
 
-  public void addDrums(MelodicPattern melodicPattern) {
+  public void addMeta(MelodicPattern melodicPattern) {
     addPattern(0, melodicPattern, 1);
   }
 
-  public void addDrums(MelodicPattern melodicPattern, int repetitions) {
-    addPattern(0, melodicPattern, repetitions);
-  }
-
-  public void addPiano(MelodicPattern melodicPattern) {
+  public void addDrums(MelodicPattern melodicPattern) {
     addPattern(1, melodicPattern, 1);
   }
 
-  public void addPiano(MelodicPattern melodicPattern, int repetitions) {
+  public void addDrums(MelodicPattern melodicPattern, int repetitions) {
     addPattern(1, melodicPattern, repetitions);
   }
 
+  public void addPiano(MelodicPattern melodicPattern) {
+    addPattern(2, melodicPattern, 1);
+  }
+
+  public void addPiano(MelodicPattern melodicPattern, int repetitions) {
+    addPattern(2, melodicPattern, repetitions);
+  }
+
   public byte[] toMidi() {
-    List<byte[]> midiTracks = patterns.stream().map(instrumentPatterns -> {
+    List<byte[]> midiTracks = patterns.stream().filter(ip -> ip.size() != 0).map(instrumentPatterns -> {
       ByteArrayOutputStream stream = new ByteArrayOutputStream();
       stream.write(0x00);
       instrumentPatterns.forEach(melodicPattern -> {
@@ -93,7 +97,7 @@ public class Melody {
 
   @Override
   public String toString() {
-    return patterns.stream().map(list -> list.get(list.size() > 2 ? 2 : 0).toString())
+    return IntStream.range(1, 3).mapToObj(i -> patterns.get(i).get(patterns.get(i).size() > 4 ? 4 : 0).toString())
         .collect(Collectors.joining("\n"));
   }
 }

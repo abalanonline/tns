@@ -17,5 +17,10 @@
 package ab;
 
 public interface MelodicPattern {
+  /**
+   * Should return the midi events in reverse form
+   * <event><delta-time> so they can be easily concatenated.
+   * @return MTrk events
+   */
   byte[] getMidi();
 }

@@ -31,7 +31,7 @@ class BossanoverTest {
   public static final int[] DRUMS_BSN = {0, 0x9999, 7, 0x9224, 11, 0xFFFF}; // bossa nova
 
   // 60s britpop AC BD1, AC SD1, RIDE
-  public static final int[] DRUMS_TNN = {0, 0x8280, 2, 0x0830, 15, 0xAAAA};
+  public static final int[] DRUMS_TNK = {0, 0x8280, 2, 0x0830, 15, 0xAAAA};
   public static final int[] DRUMS_WGO = {0, 0x8080, 2, 0x0808, 11, 0x9999}; // shuffle hihat
   // 90s britpop EL BD2, EL SD2, CH
   public static final int[] DRUMS_LFB1 = {1, 0x8220, 3, 0x082D, 11, 0xAAAA};
@@ -47,8 +47,11 @@ class BossanoverTest {
     Files.write(Paths.get("target/d_jaz.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_JAZ)).toMidi());
     Files.write(Paths.get("target/d_bsn.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_BSN)).toMidi());
 
-    Files.write(Paths.get("target/d_tnn.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_TNN)).toMidi());
-    Files.write(Paths.get("target/d_lfb.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_LFB1)).toMidi());
+    Files.write(Paths.get("target/d_tnn.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_TNK)).toMidi());
+    Melody lfb = new Melody();
+    lfb.addDrums(DrumPattern.newShort(DRUMS_LFB1));
+    lfb.addDrums(DrumPattern.newShort(DRUMS_LFB2));
+    Files.write(Paths.get("target/d_lfb.mid"), lfb.toMidi());
   }
 
   @Test
