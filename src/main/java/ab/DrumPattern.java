@@ -39,6 +39,14 @@ public class DrumPattern implements MelodicPattern {
     if (Arrays.stream(pattern).anyMatch(p -> (p | 0xFFFF) != 0xFFFF)) throw new IllegalStateException();
   }
 
+  public static DrumPattern newShort(int... patterns) {
+    int[] fullPattern = new int[DRUM_NUMBER];
+    for (int i = 1; i < patterns.length; i += 2) {
+      fullPattern[patterns[i - 1]] = patterns[i];
+    }
+    return new DrumPattern(fullPattern);
+  }
+
   @Override
   public byte[] getMidi() {
     int[] patterns = this.pattern;

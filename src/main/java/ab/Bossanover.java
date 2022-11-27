@@ -22,12 +22,6 @@ import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.Receiver;
 import javax.sound.midi.Sequencer;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -49,34 +43,6 @@ public class Bossanover {
       3, 3, 3, -1, 1, 0, 2, 2,
       3, 3
   };
-
-  public static byte[] midi707full(int... patterns) {
-    MelodicPattern drumPattern = new DrumPattern(patterns);
-    ByteArrayOutputStream stream = new ByteArrayOutputStream();
-    try {
-      stream.write(drumPattern.getMidi());
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-    stream.write(0x00);
-    stream.write(0xFF);
-    stream.write(0x2F);
-    stream.write(0x00);
-
-    ByteBuffer result = ByteBuffer.wrap(new byte[stream.size() + 0x16]);
-    result.putInt(0x4D546864).putInt(6).putShort((short) 1).putShort((short) 1).putShort((short) 0xC0);
-    result.putInt(0x4D54726B).putInt(stream.size()).put(stream.toByteArray());
-    try { Files.write(Paths.get("target/test.mid"), result.array()); } catch (IOException e) {}
-    return result.array();
-  }
-
-  public static byte[] midi707short(int... patterns) {
-    int[] fullPattern = new int[DrumPattern.DRUM_NUMBER];
-    for (int i = 1; i < patterns.length; i += 2) {
-      fullPattern[patterns[i - 1]] = patterns[i];
-    }
-    return midi707full(fullPattern);
-  }
 
   public static Receiver getTheBestMidiReceiver() {
     MidiDevice.Info[] devices = MidiSystem.getMidiDeviceInfo();
@@ -164,12 +130,12 @@ public class Bossanover {
     for (int c = System.in.read(); (c | 0x20) != 'q'; c = System.in.read()) {
       switch (c) {
         case '\n':
-          int[] bossanova = bossanover.bossanoving();
-          MelodicPattern drumPattern = new DrumPattern(bossanova);
+          MelodicPattern bossanova = new DrumPattern(bossanover.bossanoving());
           sequencer.setLoopCount(0);
           while (sequencer.isRunning()) Thread.sleep(10);
-          System.out.println(drumPattern);
-          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(midi707full(bossanova))));
+          System.out.println(bossanova);
+          sequencer.setSequence(MidiSystem.getSequence(new ByteArrayInputStream(
+              Melody.onePattern(bossanova).toMidi())));
           sequencer.setLoopCount(Sequencer.LOOP_CONTINUOUSLY);
           sequencer.start();
           break;

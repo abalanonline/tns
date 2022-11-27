@@ -16,14 +16,11 @@
 
 package ab;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class BossanoverTest {
 
@@ -44,14 +41,14 @@ class BossanoverTest {
 
   @Test
   void midi707short() throws IOException {
-    Files.write(Paths.get("target/d_4fl.mid"), Bossanover.midi707short(DRUMS_4FL));
-    Files.write(Paths.get("target/d_met.mid"), Bossanover.midi707short(DRUMS_MET));
-    Files.write(Paths.get("target/d_mtw.mid"), Bossanover.midi707short(DRUMS_MTW));
-    Files.write(Paths.get("target/d_jaz.mid"), Bossanover.midi707short(DRUMS_JAZ));
-    Files.write(Paths.get("target/d_bsn.mid"), Bossanover.midi707short(DRUMS_BSN));
+    Files.write(Paths.get("target/d_4fl.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_4FL)).toMidi());
+    Files.write(Paths.get("target/d_met.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_MET)).toMidi());
+    Files.write(Paths.get("target/d_mtw.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_MTW)).toMidi());
+    Files.write(Paths.get("target/d_jaz.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_JAZ)).toMidi());
+    Files.write(Paths.get("target/d_bsn.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_BSN)).toMidi());
 
-    Files.write(Paths.get("target/d_tnn.mid"), Bossanover.midi707short(DRUMS_TNN));
-    Files.write(Paths.get("target/d_lfb.mid"), Bossanover.midi707short(DRUMS_LFB1));
+    Files.write(Paths.get("target/d_tnn.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_TNN)).toMidi());
+    Files.write(Paths.get("target/d_lfb.mid"), Melody.onePattern(DrumPattern.newShort(DRUMS_LFB1)).toMidi());
   }
 
   @Test
