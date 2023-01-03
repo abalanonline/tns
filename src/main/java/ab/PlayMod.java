@@ -96,7 +96,6 @@ public class PlayMod {
   }
 
   public static void playAmigaModMidi(String modFile, int[] midiInstrumentMap) {
-    TnsSound sound = new TnsSound();
     try {
       AmigaMod mod = new AmigaMod(Files.newInputStream(Paths.get(modFile)), midiInstrumentMap);
       Sequence sequence = MidiSystem.getSequence(mod.toMidi());
@@ -123,12 +122,22 @@ public class PlayMod {
     }
   }
 
+  public static void asciiTracker() {
+    System.out.println("    ____                                ");
+    System.out.println("     /        __  /__   __   __   __    ");
+    System.out.println("    /  /__/ /__/ /  / /__/ /__/ /  /    ");
+    System.out.println("       __/ /    tracker                 ");
+    System.out.println();
+  }
+
   public static void main( String[] args ) {
     switch (args.length) {
       case 1:
+        asciiTracker();
         playAmigaMod(args[0], true, true);
         break;
       case 2:
+        asciiTracker();
         int[] midiInstrumentMap = Arrays.stream(args[1].split(",")).mapToInt(Integer::valueOf).toArray();
         playAmigaModMidi(args[0], midiInstrumentMap);
         break;

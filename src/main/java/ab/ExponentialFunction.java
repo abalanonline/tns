@@ -21,6 +21,7 @@ import java.util.function.UnaryOperator;
 
 /**
  * Exponential function. y=ae^bx+c
+ * Can fall back to linear b=0, y=ax+c
  */
 public class ExponentialFunction implements UnaryOperator<Double> {
   private final double aConstant;
@@ -31,14 +32,19 @@ public class ExponentialFunction implements UnaryOperator<Double> {
     double d = (x3 - x1) / 2;
     double r = (y3 - y2) / (y2 - y1);
     bConstant = Math.log(r) / d;
-    aConstant = (y3 - y1) / (Math.pow(r, x3 / d) - Math.pow(r, x1 / d));
-    cConstant = y2 - aConstant * Math.exp(bConstant * (x3 + x1) / 2);
+    if (bConstant == 0) {
+      aConstant = (y3 - y1) / (x3 - x1);
+      cConstant = y1 - aConstant * x1;
+    } else {
+      aConstant = (y3 - y1) / (Math.pow(r, x3 / d) - Math.pow(r, x1 / d));
+      cConstant = y2 - aConstant * Math.exp(bConstant * (x3 + x1) / 2);
+    }
     if (Double.isInfinite(aConstant) || Double.isInfinite(cConstant)) throw new ArithmeticException();
   }
 
   @Override
   public Double apply(Double d) {
-    return aConstant * Math.exp(bConstant * d) + cConstant;
+    return aConstant * (bConstant == 0 ? d : Math.exp(bConstant * d)) + cConstant;
   }
 
   public int apply(int i) {

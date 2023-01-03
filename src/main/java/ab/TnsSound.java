@@ -58,12 +58,6 @@ public class TnsSound implements AutoCloseable, Receiver {
    * @param latencyMs the latency in ms, must be longer than maximum estimated time between sound.putWav()
    */
   public TnsSound(AudioFormat audioFormat, int latencyMs) {
-    System.out.println("    ____                                ");
-    System.out.println("     /        __  /__   __   __   __    ");
-    System.out.println("    /  /__/ /__/ /  / /__/ /__/ /  /    ");
-    System.out.println("       __/ /    tracker                 ");
-    System.out.println();
-
     try {
       MidiDevice midiDevice = MidiSystem.getMidiDevice(MidiSystem.getMidiDeviceInfo()[0]);
       midiDevice.open();
